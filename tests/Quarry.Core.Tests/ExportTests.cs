@@ -146,10 +146,10 @@ public sealed class ExportTests : IDisposable
         Assert.True(errors.Count == 0, string.Join("\n", errors.Select(e => $"{e.Path?.XPath}: {e.Description}")));
 
         var workbook = doc.WorkbookPart!;
-        var sheets = workbook.Workbook.Sheets!.Elements<Sheet>().ToList();
+        var sheets = workbook.Workbook!.Sheets!.Elements<Sheet>().ToList();
         Assert.Equal(["Result 1", "Result 2"], sheets.Select(s => s.Name!.Value));
 
-        var rows = ((WorksheetPart)workbook.GetPartById(sheets[0].Id!)).Worksheet.Descendants<Row>().ToList();
+        var rows = ((WorksheetPart)workbook.GetPartById(sheets[0].Id!)).Worksheet!.Descendants<Row>().ToList();
         Assert.Equal(3, rows.Count);
         var header = rows[0].Elements<Cell>().ToList();
         Assert.Equal("id", header[0].InnerText);
@@ -170,7 +170,7 @@ public sealed class ExportTests : IDisposable
         // Nulls keep their column position as empty cells.
         Assert.Equal(7, rows[2].Elements<Cell>().Count());
 
-        var second = ((WorksheetPart)workbook.GetPartById(sheets[1].Id!)).Worksheet.Descendants<Row>().ToList()[1].Elements<Cell>().ToList();
+        var second = ((WorksheetPart)workbook.GetPartById(sheets[1].Id!)).Worksheet!.Descendants<Row>().ToList()[1].Elements<Cell>().ToList();
         Assert.Equal("ctrl�char", second[0].InnerText);
         Assert.Equal("1234567890123456789", second[1].InnerText); // beyond Excel precision: kept as text
         Assert.Equal(CellValues.InlineString, second[1].DataType!.Value);
@@ -191,10 +191,10 @@ public sealed class ExportTests : IDisposable
 
         using var doc = SpreadsheetDocument.Open(path, false);
         Assert.Empty(new OpenXmlValidator().Validate(doc));
-        var sheets = doc.WorkbookPart!.Workbook.Sheets!.Elements<Sheet>().Select(s => s.Name!.Value).ToList();
+        var sheets = doc.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Select(s => s.Name!.Value).ToList();
         Assert.Equal(["Result 1", "Result 1 (2)", "Result 1 (3)", "Result 1 (4)"], sheets);
         // Each continuation sheet repeats the header: 3 data rows per sheet after the first 3.
-        int dataRows = doc.WorkbookPart.WorksheetParts.Sum(p => p.Worksheet.Descendants<Row>().Count() - 1);
+        int dataRows = doc.WorkbookPart.WorksheetParts.Sum(p => p.Worksheet!.Descendants<Row>().Count() - 1);
         Assert.Equal(10, dataRows);
     }
 

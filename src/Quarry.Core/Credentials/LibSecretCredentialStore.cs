@@ -17,11 +17,32 @@ public sealed unsafe partial class LibSecretCredentialStore : ICredentialStore
 
     private readonly Lazy<bool> _available = new(Probe);
 
+
     public bool IsAvailable => _available.Value;
 
     private static bool Probe()
     {
-        return NativeLibrary.TryLoad(LibSecret, out _) && NativeLibrary.TryLoad(LibGlib, out _);
+        if (!NativeLibrary.TryLoad(LibSecret, out _) || !NativeLibrary.TryLoad(LibGlib, out _))
+            return false;
+        // The library can be installed without a running Secret Service (headless servers, CI);
+        // a lookup fails fast in that case.
+        try
+        {
+            new LibSecretCredentialStore(probe: false).Get("Quarry/probe");
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public LibSecretCredentialStore() : this(probe: true) { }
+
+    private LibSecretCredentialStore(bool probe)
+    {
+        if (!probe)
+            _available = new Lazy<bool>(true);
     }
 
     public string? Get(string key)

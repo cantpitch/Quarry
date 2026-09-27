@@ -5,7 +5,7 @@ namespace Quarry.Core.Tests;
 
 /// <summary>
 /// Provides a SQL Server for integration tests: the QUARRY_TEST_CONNECTION connection string when set,
-/// otherwise a Testcontainers SQL Server 2022 container (requires Docker).
+/// otherwise a Testcontainers SQL Server 2022 container (requires Docker; set QUARRY_NO_DOCKER=1 to skip instead).
 /// </summary>
 public sealed class SqlServerFixture : IAsyncLifetime
 {
@@ -29,7 +29,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
         if (!IsAvailable)
             return;
 
-        _container = new MsSqlBuilder().WithImage("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
         await _container.StartAsync();
         ConnectionString = _container.GetConnectionString();
     }
@@ -49,6 +49,9 @@ public sealed class SqlServerFixture : IAsyncLifetime
 
     private static bool DockerLikelyAvailable()
     {
+        // CI runners may expose Docker without being able to run the Linux SQL Server image.
+        if (Environment.GetEnvironmentVariable("QUARRY_NO_DOCKER") is "1" or "true")
+            return false;
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOCKER_HOST")))
             return true;
         return OperatingSystem.IsWindows()

@@ -186,7 +186,7 @@ public class QueryExecutorTests(SqlServerFixture server)
                 else
                 {
                     using var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, false);
-                    var rows = doc.WorkbookPart!.WorksheetParts.Sum(p => p.Worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Row>().Count());
+                    var rows = doc.WorkbookPart!.WorksheetParts.Sum(p => p.Worksheet!.Descendants<DocumentFormat.OpenXml.Spreadsheet.Row>().Count());
                     Assert.Equal(60001 + 2, rows); // plus a header per sheet
                 }
             }
