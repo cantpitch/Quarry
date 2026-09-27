@@ -20,6 +20,12 @@ public sealed record AppSettings
 
     public string BatchSeparator { get; init; } = "GO";
 
+    /// <summary>SQL formatter style. Its batch separator is ignored in favour of <see cref="BatchSeparator"/>.</summary>
+    public Parsing.Formatting.SqlFormatOptions Formatting { get; init; } = new();
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Parsing.Formatting.SqlFormatOptions EffectiveFormatting => Formatting with { BatchSeparator = BatchSeparator };
+
     /// <summary>Record executed queries in the History panel.</summary>
     public bool SaveQueryHistory { get; init; } = true;
 

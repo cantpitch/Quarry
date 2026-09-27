@@ -54,6 +54,7 @@ public partial class MainWindow : Window, IDialogService
             Key.W when command => () => ViewModel.CloseDocumentAsync(null),
             Key.E when mods == (cmd | KeyModifiers.Shift) => ViewModel.ExportResultsAsync,
             Key.F5 when mods == KeyModifiers.Shift => ViewModel.RunScriptToFileAsync,
+            Key.F when mods == (cmd | KeyModifiers.Shift) => ViewModel.FormatAsync,
             _ => null,
         };
         if (action is null && e.Key == Key.Escape && ViewModel.SelectedDocument is { IsExecuting: true })

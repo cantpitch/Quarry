@@ -15,6 +15,7 @@ using Quarry.Core.Export;
 using Quarry.Core.History;
 using Quarry.Core.Results;
 using Quarry.Parsing;
+using Quarry.Parsing.Formatting;
 
 namespace Quarry.App.ViewModels;
 
@@ -30,6 +31,10 @@ public interface IEditorAccessor
     void GoToLine(int zeroBasedLine);
 
     void InsertAtCaret(string text);
+
+    void SetCaret(int offset);
+
+    void Select(int start, int length);
 
     void Focus();
 }
@@ -441,6 +446,83 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         foreach (var file in files)
             sb.Append('\n').Append(file);
         return sb.ToString();
+    }
+
+    // ---- Formatting ----
+
+    /// <summary>
+    /// Formats the selection, or the whole document when nothing is selected, as one undoable edit.
+    /// Batches with syntax errors are left as they are.
+    /// </summary>
+    public async Task FormatAsync()
+    {
+        if (Editor is null)
+            return;
+        var selection = Editor.Selection;
+        bool whole = selection.IsEmpty;
+        int start = whole ? 0 : selection.Start;
+        string input = whole ? Document.Text : Document.GetText(selection.Start, selection.Length);
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+
+        int caret = Editor.CaretOffset;
+        var options = AppServices.Settings.EffectiveFormatting;
+        SqlFormatResult result;
+        try
+        {
+            result = await Task.Run(() => SqlFormatter.Format(input, options));
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Formatting failed: {ex.Message}";
+            return;
+        }
+
+        // The document may have changed while formatting ran in the background.
+        string current = whole ? Document.Text : start + input.Length <= Document.TextLength ? Document.GetText(start, input.Length) : "";
+        if (current != input)
+        {
+            StatusText = "The text changed while formatting; nothing was replaced.";
+            return;
+        }
+
+        if (result.Changed)
+        {
+            Document.Replace(start, input.Length, result.Text);
+            if (whole)
+                Editor.SetCaret(MapOffset(input, result.Text, caret));
+            else
+                Editor.Select(start, result.Text.Length);
+        }
+
+        StatusText = result.SkippedBatches switch
+        {
+            0 => result.Changed ? "Formatted." : "Already formatted.",
+            _ => $"Formatted, except: {result.Problems[0]}"
+                 + (result.Problems.Count > 1 ? $" (and {result.Problems.Count - 1} more)" : ""),
+        };
+    }
+
+    /// <summary>
+    /// Maps a caret offset across a whitespace/case-only change by counting the non-whitespace
+    /// characters before it.
+    /// </summary>
+    internal static int MapOffset(string before, string after, int offset)
+    {
+        int significant = 0;
+        for (int i = 0; i < Math.Min(offset, before.Length); i++)
+        {
+            if (!char.IsWhiteSpace(before[i]))
+                significant++;
+        }
+        for (int i = 0; i < after.Length; i++)
+        {
+            if (significant == 0)
+                return i;
+            if (!char.IsWhiteSpace(after[i]))
+                significant--;
+        }
+        return after.Length;
     }
 
     // ---- Export ----
