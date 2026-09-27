@@ -153,10 +153,12 @@ public class UiTests
         }
         Assert.Contains("answer\tlabel\tnothing", doc.TextOutput);
 
-        // Explorer: databases load under the server node.
-        await WaitUntilAsync(() => vm.ExplorerRoots[0].Children.Any(c => c is DatabaseNode));
-        var master = vm.ExplorerRoots[0].Children.OfType<StaticFolderNode>().First().Children.OfType<DatabaseNode>().First(d => d.Database == "master");
-        vm.ExplorerRoots[0].Children.OfType<StaticFolderNode>().First().IsExpanded = true;
+        // Explorer: databases load under the server node. A fresh server (as in CI) has only
+        // system databases, which live in the "System Databases" folder.
+        await WaitUntilAsync(() => vm.ExplorerRoots[0].Children.OfType<StaticFolderNode>().Any());
+        var systemFolder = vm.ExplorerRoots[0].Children.OfType<StaticFolderNode>().First();
+        var master = systemFolder.Children.OfType<DatabaseNode>().First(d => d.Database == "master");
+        systemFolder.IsExpanded = true;
         master.IsExpanded = true;
         await WaitUntilAsync(() => master.Children.Count > 1);
         var views = master.Children.OfType<ObjectFolderNode>().First(f => f.Text.StartsWith("Views"));
