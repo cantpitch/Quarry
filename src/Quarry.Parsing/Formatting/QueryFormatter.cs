@@ -124,6 +124,43 @@ internal sealed class QueryFormatter
     /// <summary>Formats all tokens inline (normalised spacing, subqueries laid out).</summary>
     public void FormatInline(int continuation) => WriteInline(0, _t.Count, continuation);
 
+    /// <summary>
+    /// Writes the tokens before <paramref name="predicateStart"/> inline (e.g. "IF", "WHILE") and the rest
+    /// as a condition split at top-level AND / OR.
+    /// </summary>
+    public void FormatConditions(TSqlParserToken predicateStart, ConditionLayout layout, int bodyColumn)
+    {
+        int p = IndexOf(predicateStart);
+        if (p < 0)
+        {
+            WriteInline(0, _t.Count, bodyColumn);
+            return;
+        }
+        WriteInline(0, p, bodyColumn);
+        int conditionColumn = _w.Column + (_w.HasContent ? 1 : 0);
+        WriteConditions(p, _t.Count, layout, conditionColumn, bodyColumn);
+    }
+
+    /// <summary>
+    /// Writes the tokens before <paramref name="listStart"/> inline (e.g. "DECLARE") and the rest as a
+    /// comma-separated list lined up after them.
+    /// </summary>
+    public void FormatList(TSqlParserToken listStart, bool onePerLine)
+    {
+        int p = IndexOf(listStart);
+        if (p < 0)
+        {
+            WriteInline(0, _t.Count, _w.Column);
+            return;
+        }
+        int continuation = _w.Column;
+        WriteInline(0, p, continuation);
+        int itemColumn = _w.Column + (_w.HasContent ? 1 : 0);
+        WriteList(p, _t.Count, itemColumn, onePerLine);
+    }
+
+    private int IndexOf(TSqlParserToken token) => _t.FindIndex(t => ReferenceEquals(t.Source, token));
+
     private void FormatQuery(int start, int end, int baseColumn)
     {
         // A trailing semicolon is written straight after the query.
@@ -575,6 +612,12 @@ internal sealed class QueryFormatter
         for (int i = s; i < e; i++)
         {
             var tok = _t[i];
+            if (tok.Upper == "CASE" && tok.IsKeyword && FindCaseEnd(i, e) is var caseEnd and >= 0)
+            {
+                WriteCase(i, caseEnd, continuation);
+                i = caseEnd;
+                continue;
+            }
             if (tok.Text == "(" && tok.Match > i && tok.Match < e)
             {
                 Emit(i, continuation);
@@ -589,6 +632,106 @@ internal sealed class QueryFormatter
             }
             Emit(i, continuation);
         }
+    }
+
+    /// <summary>Index of the END that closes the CASE at <paramref name="caseIndex"/>, or -1.</summary>
+    private int FindCaseEnd(int caseIndex, int e)
+    {
+        int depth = 0;
+        for (int i = caseIndex; i < e; i++)
+        {
+            var tok = _t[i];
+            if (tok.Text == "(" && tok.Match > i)
+            {
+                i = tok.Match;
+                continue;
+            }
+            if (!tok.IsKeyword)
+                continue;
+            if (tok.Upper == "CASE")
+                depth++;
+            else if (tok.Upper == "END" && --depth == 0)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Writes CASE … END with each WHEN and the ELSE on their own lines (unless the layout or a
+    /// single WHEN keeps it on one line). Nested CASE expressions are laid out relative to where they start.
+    /// </summary>
+    private void WriteCase(int caseIndex, int end, int continuation)
+    {
+        // WHEN / ELSE of this CASE (not of nested ones, and not inside parentheses).
+        var branches = new List<int>();
+        bool nested = false, subquery = false;
+        int depth = 0;
+        for (int i = caseIndex + 1; i < end; i++)
+        {
+            var tok = _t[i];
+            if (tok.Text == "(" && tok.Match > i)
+            {
+                subquery |= IsSubquery(i + 1, tok.Match);
+                i = tok.Match;
+                continue;
+            }
+            if (!tok.IsKeyword)
+                continue;
+            if (tok.Upper == "CASE")
+            {
+                nested = true;
+                depth++;
+            }
+            else if (tok.Upper == "END")
+                depth--;
+            else if (depth == 0 && tok.Upper is "WHEN" or "ELSE")
+                branches.Add(i);
+        }
+
+        int whens = branches.Count(b => _t[b].Upper == "WHEN");
+        bool oneLine = _o.CaseLayout == CaseLayout.SingleLine || branches.Count == 0
+                       || (_o.SingleWhenCaseOnOneLine && whens == 1 && !nested && !subquery);
+
+        Emit(caseIndex, continuation);
+        int caseColumn = _w.Column - Cased(caseIndex).Length;
+        if (oneLine)
+        {
+            WriteInline(caseIndex + 1, end, continuation);
+            Emit(end, continuation);
+            return;
+        }
+
+        // Comments on their own lines before a WHEN / ELSE go with it.
+        for (int n = 0; n < branches.Count; n++)
+        {
+            int floor = n == 0 ? caseIndex + 1 : branches[n - 1] + 1;
+            while (branches[n] - 1 >= floor && _t[branches[n] - 1].IsComment && _t[branches[n] - 1].NewlineBefore)
+                branches[n]--;
+        }
+
+        WriteInline(caseIndex + 1, branches[0], caseColumn + _o.IndentSize); // simple CASE input expression
+        int branchColumn = caseColumn + _o.IndentSize;
+        for (int n = 0; n < branches.Count; n++)
+        {
+            int from = branches[n], to = n + 1 < branches.Count ? branches[n + 1] : end;
+            if (_o.CaseLayout == CaseLayout.Aligned && n == 0 && !_t[from].IsComment && !_w.PendingNewline)
+            {
+                Emit(from, continuation);
+                branchColumn = _w.Column - Cased(from).Length;
+                WriteInline(from + 1, to, branchColumn + _o.IndentSize);
+                continue;
+            }
+            _w.NewLine(branchColumn);
+            for (; from < to && _t[from].IsComment; from++)
+            {
+                Emit(from, branchColumn);
+                if (_w.PendingNewline)
+                    _w.NewLine(branchColumn);
+            }
+            WriteInline(from, to, branchColumn + _o.IndentSize);
+        }
+        _w.NewLine(caseColumn);
+        Emit(end, continuation);
     }
 
     private bool IsSubquery(int s, int e)

@@ -17,7 +17,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string PreviewSql =
         "select a.Id, a.Name, count(*) as Total from Table1 a join Table2 b on a.Id = b.Id and a.Type = b.Type " +
         "left join Table3 c on a.OtherId = c.OtherId where a.Something = 5 and not exists " +
-        "(select 1 from Table4 d where d.Table4Id = a.Table4Id) group by a.Id, a.Name";
+        "(select 1 from Table4 d where d.Table4Id = a.Table4Id) group by a.Id, a.Name\n" +
+        "if @Mode = 1 and @Debug = 0 begin update Table1 set Status = case when Total > 100 then 'Large' " +
+        "when Total > 10 then 'Medium' else 'Small' end where Id = @Id end else print 'Skipped'";
 
     public SettingsViewModel()
     {
@@ -38,6 +40,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         _selectedListLayout = ListLayouts.First(c => c.Value == f.ListLayout);
         _selectedCommaPlacement = CommaPlacements.First(c => c.Value == f.CommaPlacement);
         _selectedJoinConditions = JoinConditionLayouts.First(c => c.Value == f.JoinConditions);
+        _selectedControlFlowConditions = ControlFlowConditionLayouts.First(c => c.Value == f.ControlFlowConditions);
+        _selectedBlockLayout = BlockLayouts.First(c => c.Value == f.BlockLayout);
+        _selectedCaseLayout = CaseLayouts.First(c => c.Value == f.CaseLayout);
+        _singleWhenCaseOnOneLine = f.SingleWhenCaseOnOneLine;
         _whereConditionsOnNewLines = f.WhereConditionsOnNewLines;
         _indentSize = f.IndentSize;
         UpdatePreview();
@@ -116,6 +122,27 @@ public sealed partial class SettingsViewModel : ObservableObject
         new(ConditionLayout.SameLine, "Same line"),
     ];
 
+    public IReadOnlyList<Choice<ConditionLayout>> ControlFlowConditionLayouts { get; } =
+    [
+        new(ConditionLayout.BodyColumn, "New line, indented"),
+        new(ConditionLayout.UnderFirstCondition, "New line, under the first condition"),
+        new(ConditionLayout.SameLine, "Same line"),
+    ];
+
+    public IReadOnlyList<Choice<BlockLayout>> BlockLayouts { get; } =
+    [
+        new(BlockLayout.Aligned, "Own line, lined up with IF / ELSE / WHILE"),
+        new(BlockLayout.SameLine, "End of the IF / ELSE / WHILE line (END ELSE BEGIN)"),
+        new(BlockLayout.Indented, "Own line, indented"),
+    ];
+
+    public IReadOnlyList<Choice<CaseLayout>> CaseLayouts { get; } =
+    [
+        new(CaseLayout.Indented, "WHEN on new lines, indented"),
+        new(CaseLayout.Aligned, "WHEN on new lines, under the first WHEN"),
+        new(CaseLayout.SingleLine, "Keep on one line"),
+    ];
+
     [ObservableProperty]
     private Choice<KeywordCase> _selectedKeywordCase;
 
@@ -130,6 +157,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private Choice<ConditionLayout> _selectedJoinConditions;
+
+    [ObservableProperty]
+    private Choice<ConditionLayout> _selectedControlFlowConditions;
+
+    [ObservableProperty]
+    private Choice<BlockLayout> _selectedBlockLayout;
+
+    [ObservableProperty]
+    private Choice<CaseLayout> _selectedCaseLayout;
+
+    [ObservableProperty]
+    private bool _singleWhenCaseOnOneLine;
 
     [ObservableProperty]
     private bool _whereConditionsOnNewLines;
@@ -148,6 +187,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         CommaPlacement = SelectedCommaPlacement.Value,
         JoinConditions = SelectedJoinConditions.Value,
         WhereConditionsOnNewLines = WhereConditionsOnNewLines,
+        ControlFlowConditions = SelectedControlFlowConditions.Value,
+        BlockLayout = SelectedBlockLayout.Value,
+        CaseLayout = SelectedCaseLayout.Value,
+        SingleWhenCaseOnOneLine = SingleWhenCaseOnOneLine,
         IndentSize = Math.Clamp(IndentSize, 1, 16),
     };
 
@@ -163,12 +206,21 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnWhereConditionsOnNewLinesChanged(bool value) => UpdatePreview();
 
+    partial void OnSelectedControlFlowConditionsChanged(Choice<ConditionLayout> value) => UpdatePreview();
+
+    partial void OnSelectedBlockLayoutChanged(Choice<BlockLayout> value) => UpdatePreview();
+
+    partial void OnSelectedCaseLayoutChanged(Choice<CaseLayout> value) => UpdatePreview();
+
+    partial void OnSingleWhenCaseOnOneLineChanged(bool value) => UpdatePreview();
+
     partial void OnIndentSizeChanged(int value) => UpdatePreview();
 
     private void UpdatePreview()
     {
         // The constructor runs this before every choice is assigned.
-        if (SelectedKeywordCase is null || SelectedClauseLayout is null || SelectedListLayout is null || SelectedCommaPlacement is null || SelectedJoinConditions is null)
+        if (SelectedKeywordCase is null || SelectedClauseLayout is null || SelectedListLayout is null || SelectedCommaPlacement is null || SelectedJoinConditions is null
+            || SelectedControlFlowConditions is null || SelectedBlockLayout is null || SelectedCaseLayout is null)
             return;
         Preview = SqlFormatter.Format(PreviewSql, FormatOptions).Text;
     }

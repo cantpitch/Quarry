@@ -286,6 +286,187 @@ public class SqlFormatterTests
     }
 
     [Fact]
+    public void Case_Indented_ByDefault()
+    {
+        Assert.Equal(Lines(
+            "SELECT o.Id,",
+            "       CASE o.Status",
+            "           WHEN 'Open' THEN 'O'",
+            "           WHEN 'Closed' THEN 'C'",
+            "           ELSE 'X'",
+            "       END AS Code,",
+            "       SUM(CASE WHEN o.Rush = 1 THEN 1 ELSE 0 END) AS Rush",
+            "FROM   dbo.Orders o"),
+            Format("select o.Id, case o.Status when 'Open' then 'O' when 'Closed' then 'C' else 'X' end as Code, " +
+                   "sum(case when o.Rush = 1 then 1 else 0 end) as Rush from dbo.Orders o"));
+    }
+
+    [Fact]
+    public void Case_Nested_AndInConditions()
+    {
+        Assert.Equal(Lines(
+            "SELECT CASE",
+            "           WHEN a = 1 THEN 'x'",
+            "           ELSE CASE",
+            "                    WHEN b = 1 THEN 'p'",
+            "                    WHEN b = 2 THEN 'q'",
+            "                END",
+            "       END",
+            "FROM   t",
+            "WHERE  CASE",
+            "           WHEN a = 1 THEN b",
+            "           WHEN a = 2 THEN c",
+            "       END = 5",
+            "       AND d BETWEEN 1 AND 2"),
+            Format("select case when a = 1 then 'x' else case when b = 1 then 'p' when b = 2 then 'q' end end from t " +
+                   "where case when a = 1 then b when a = 2 then c end = 5 and d between 1 and 2"));
+    }
+
+    [Fact]
+    public void Case_OtherLayouts()
+    {
+        const string sql = "select case when a = 1 then 'x' when a = 2 then 'y' else 'z' end as k, case when b = 1 then 2 end from t";
+        Assert.Equal(Lines(
+            "SELECT CASE WHEN a = 1 THEN 'x'",
+            "            WHEN a = 2 THEN 'y'",
+            "            ELSE 'z'",
+            "       END AS k,",
+            "       CASE WHEN b = 1 THEN 2 END",
+            "FROM   t"),
+            Format(sql, new SqlFormatOptions { CaseLayout = CaseLayout.Aligned }));
+        Assert.Equal(Lines(
+            "SELECT CASE WHEN a = 1 THEN 'x' WHEN a = 2 THEN 'y' ELSE 'z' END AS k,",
+            "       CASE WHEN b = 1 THEN 2 END",
+            "FROM   t"),
+            Format(sql, new SqlFormatOptions { CaseLayout = CaseLayout.SingleLine }));
+        Assert.Equal(Lines(
+            "SELECT CASE",
+            "           WHEN a = 1 THEN 'x'",
+            "           WHEN a = 2 THEN 'y'",
+            "           ELSE 'z'",
+            "       END AS k,",
+            "       CASE",
+            "           WHEN b = 1 THEN 2",
+            "       END",
+            "FROM   t"),
+            Format(sql, new SqlFormatOptions { SingleWhenCaseOnOneLine = false }));
+    }
+
+    [Fact]
+    public void Case_CommentsStayWithTheirBranch()
+    {
+        Assert.Equal(Lines(
+            "SELECT CASE -- kind",
+            "           WHEN a = 1 THEN 'x' -- first",
+            "           -- second",
+            "           WHEN a = 2 THEN 'y'",
+            "       END",
+            "FROM   t"),
+            Format("select case -- kind\nwhen a = 1 then 'x' -- first\n-- second\nwhen a = 2 then 'y' end from t"));
+    }
+
+    [Fact]
+    public void Case_InVariableStatements()
+    {
+        Assert.Equal(Lines(
+            "DECLARE @a int = 1,",
+            "        @b varchar(10) = CASE",
+            "                             WHEN @a = 1 THEN 'x'",
+            "                             WHEN @a = 2 THEN 'y'",
+            "                         END",
+            "SET @b = CASE @a",
+            "             WHEN 1 THEN 'one'",
+            "             WHEN 2 THEN 'two'",
+            "         END",
+            "RETURN CASE WHEN @a = 1 THEN 0 ELSE 1 END"),
+            Format("declare @a int = 1, @b varchar(10) = case when @a = 1 then 'x' when @a = 2 then 'y' end\n" +
+                   "set @b = case @a when 1 then 'one' when 2 then 'two' end\n" +
+                   "return case when @a = 1 then 0 else 1 end"));
+    }
+
+    [Fact]
+    public void ControlFlowConditions_SplitAtAndOr()
+    {
+        const string sql = "if @a = 1 and @b between 1 and 5 or not exists (select 1 from t) print 'x'\n" +
+                           "while @i < 10 and @done = 0 set @i += 1";
+        Assert.Equal(Lines(
+            "IF @a = 1",
+            "    AND @b BETWEEN 1 AND 5",
+            "    OR NOT EXISTS (SELECT 1",
+            "                   FROM   t)",
+            "    PRINT 'x'",
+            "WHILE @i < 10",
+            "    AND @done = 0",
+            "    SET @i += 1"),
+            Format(sql));
+        Assert.Equal(Lines(
+            "IF @a = 1 AND @b BETWEEN 1 AND 5 OR NOT EXISTS (SELECT 1",
+            "                                                FROM   t)",
+            "    PRINT 'x'",
+            "WHILE @i < 10 AND @done = 0",
+            "    SET @i += 1"),
+            Format(sql, new SqlFormatOptions { ControlFlowConditions = ConditionLayout.SameLine }));
+    }
+
+    private const string BlockSql =
+        "if @x = 1 begin print 'one' end else if @x = 2 begin print 'two' end else print 'other'\n" +
+        "while @i < 3 begin set @i += 1 end";
+
+    [Fact]
+    public void Blocks_SameLine()
+    {
+        Assert.Equal(Lines(
+            "IF @x = 1 BEGIN",
+            "    PRINT 'one'",
+            "END ELSE IF @x = 2 BEGIN",
+            "    PRINT 'two'",
+            "END ELSE",
+            "    PRINT 'other'",
+            "WHILE @i < 3 BEGIN",
+            "    SET @i += 1",
+            "END"),
+            Format(BlockSql, new SqlFormatOptions { BlockLayout = BlockLayout.SameLine }));
+    }
+
+    [Fact]
+    public void Blocks_SameLine_KeepsBeginOnItsOwnLineAfterAWrappedConditionOrComment()
+    {
+        Assert.Equal(Lines(
+            "IF @a = 1",
+            "    AND @b = 2",
+            "BEGIN",
+            "    PRINT 'x'",
+            "END",
+            "IF @c = 1 -- note",
+            "BEGIN",
+            "    PRINT 'y'",
+            "END"),
+            Format("if @a = 1 and @b = 2 begin print 'x' end\nif @c = 1 -- note\nbegin print 'y' end",
+                new SqlFormatOptions { BlockLayout = BlockLayout.SameLine }));
+    }
+
+    [Fact]
+    public void Blocks_Indented()
+    {
+        Assert.Equal(Lines(
+            "IF @x = 1",
+            "    BEGIN",
+            "        PRINT 'one'",
+            "    END",
+            "ELSE IF @x = 2",
+            "    BEGIN",
+            "        PRINT 'two'",
+            "    END",
+            "ELSE",
+            "    PRINT 'other'",
+            "WHILE @i < 3",
+            "    BEGIN",
+            "        SET @i += 1",
+            "    END"),
+            Format(BlockSql, new SqlFormatOptions { BlockLayout = BlockLayout.Indented }));
+    }
+
+    [Fact]
     public void RealisticScript_FormatsEveryBatch()
     {
         const string script = """
