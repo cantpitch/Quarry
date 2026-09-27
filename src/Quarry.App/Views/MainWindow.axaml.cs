@@ -25,9 +25,14 @@ public partial class MainWindow : Window, IDialogService
         SettingsChanged += (_, _) => ViewModel.History.SettingsChanged();
     }
 
-    /// <summary>Opens an empty query tab and the connect dialog, as on application start.</summary>
+    /// <summary>
+    /// Reopens the last session's tabs; when there were none, opens an empty query tab and the
+    /// connect dialog.
+    /// </summary>
     public async Task StartupAsync()
     {
+        if (await ViewModel.RestoreSessionAsync())
+            return;
         await ViewModel.NewQueryAsync(null, null);
         await ViewModel.ConnectAsync();
     }

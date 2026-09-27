@@ -176,6 +176,8 @@
                     <TabStrip.ItemTemplate>
                         <DataTemplate DataType="vm:QueryDocumentViewModel">
                             <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding FilePath}">
+                                <TextBlock Text="{Binding ServerAndDatabase}" VerticalAlignment="Center" FontSize="13" Opacity="0.65"
+                                           IsVisible="{Binding ServerAndDatabase, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontSize="13" />
                                 <Button Classes="toolbar" Padding="4,0" FontSize="11" Content="✕"
                                         Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CloseDocumentCommand}"

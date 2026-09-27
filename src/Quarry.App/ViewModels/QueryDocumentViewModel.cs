@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -45,6 +46,9 @@ public enum RunMode
     Query,
 }
 
+/// <summary>A connection a restored tab should get back once its server reconnects.</summary>
+public sealed record RememberedConnection(Guid ProfileId, string ServerDisplayName, string? Database);
+
 /// <summary>One query tab: the editor text, its own connection, and the last execution's output.</summary>
 public sealed partial class QueryDocumentViewModel : ObservableObject, ICompletionContext, IAsyncDisposable
 {
@@ -58,10 +62,22 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
     private bool _suppressDatabaseChange;
     private int _textRenderVersion;
 
-    public QueryDocumentViewModel(Func<Task<ServerConnection?>> requestConnection)
+    /// <param name="sessionId">The id of a restored tab; new tabs get a fresh one.</param>
+    /// <param name="untitledName">The name of a restored untitled tab.</param>
+    public QueryDocumentViewModel(Func<Task<ServerConnection?>> requestConnection, Guid? sessionId = null, string? untitledName = null)
     {
         _requestConnection = requestConnection;
-        _untitledName = $"SQLQuery{Interlocked.Increment(ref _untitledCounter)}.sql";
+        SessionId = sessionId ?? Guid.NewGuid();
+        if (untitledName is not null && UntitledNumber(untitledName) is { } number)
+        {
+            _untitledName = untitledName;
+            // Later new tabs must not reuse a restored tab's number.
+            _untitledCounter = Math.Max(_untitledCounter, number);
+        }
+        else
+        {
+            _untitledName = $"SQLQuery{Interlocked.Increment(ref _untitledCounter)}.sql";
+        }
         _outputMode = AppServices.Settings.DefaultOutputMode;
         Document.UndoStack.PropertyChanged += (_, e) =>
         {
@@ -69,16 +85,62 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
                 OnPropertyChanged(nameof(IsDirty));
             OnPropertyChanged(nameof(Title));
         };
+        Document.TextChanged += (_, _) => TextVersion++;
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _elapsedTimer.Tick += (_, _) => ElapsedText = FormatElapsed(_stopwatch.Elapsed);
         Results.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanExport));
     }
 
+    private static int? UntitledNumber(string name)
+        => Regex.Match(name, @"^SQLQuery(\d{1,9})\.sql$") is { Success: true } m ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : null;
+
     public TextDocument Document { get; } = new();
 
-    public IEditorAccessor? Editor { get; set; }
+    /// <summary>Identifies the tab in the saved session.</summary>
+    public Guid SessionId { get; }
+
+    /// <summary>Incremented on every text change, so the session knows which backups are out of date.</summary>
+    public int TextVersion { get; private set; }
+
+    private IEditorAccessor? _editor;
+    private int? _pendingCaret;
+
+    public IEditorAccessor? Editor
+    {
+        get => _editor;
+        set
+        {
+            _editor = value;
+            if (value is not null && _pendingCaret is { } caret)
+            {
+                _pendingCaret = null;
+                value.SetCaret(caret);
+            }
+        }
+    }
+
+    /// <summary>The caret position, also before the editor is attached.</summary>
+    public int CaretOffset
+    {
+        get => _editor?.CaretOffset ?? _pendingCaret ?? 0;
+        set
+        {
+            if (_editor is not null)
+                _editor.SetCaret(value);
+            else
+                _pendingCaret = value;
+        }
+    }
+
+    public string UntitledName => _untitledName;
 
     private readonly string _untitledName;
+
+    /// <summary>Set when restored text is not in the file (or the tab is untitled), until the tab is saved.</summary>
+    private bool _restoredUnsaved;
+
+    /// <summary>The connection to get back, while its server reconnects or after that failed.</summary>
+    public RememberedConnection? RememberedConnection { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Title), nameof(FileName))]
@@ -86,12 +148,17 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
 
     public string FileName => FilePath is null ? _untitledName : Path.GetFileName(FilePath);
 
-    public bool IsDirty => !Document.UndoStack.IsOriginalFile;
+    public bool IsDirty => _restoredUnsaved || !Document.UndoStack.IsOriginalFile;
 
     public string Title => IsDirty ? FileName + " •" : FileName;
 
+    /// <summary>"Server/Database", shown before the file name on the tab; empty when not connected.</summary>
+    public string ServerAndDatabase => Server is null ? ""
+        : string.IsNullOrEmpty(Database) ? Server.Profile.DisplayName
+        : $"{Server.Profile.DisplayName}/{Database}";
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ConnectionText))]
+    [NotifyPropertyChangedFor(nameof(ConnectionText), nameof(ServerAndDatabase))]
     private ServerConnection? _server;
 
     private string? _database;
@@ -109,6 +176,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
                 return;
             _database = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(ServerAndDatabase));
             if (!_suppressDatabaseChange)
                 _ = ChangeDatabaseAsync(value);
         }
@@ -165,11 +233,13 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
     public async Task SetServerAsync(ServerConnection? server, string? database)
     {
         await CloseConnectionAsync();
+        RememberedConnection = null;
         Server = server;
         string target = database ?? server?.Profile.Database ?? "master";
         _database = null;
         Databases.Clear();
         OnPropertyChanged(nameof(Database));
+        OnPropertyChanged(nameof(ServerAndDatabase));
         if (server is null)
             return;
         try
@@ -612,21 +682,41 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
 
     // ---- Files ----
 
+    public static async Task<string> ReadFileAsync(string path)
+    {
+        using var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync();
+    }
+
     public async Task LoadFileAsync(string path)
     {
-        string text;
-        using (var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
-            text = await reader.ReadToEndAsync();
+        string text = await ReadFileAsync(path);
         Document.Text = text;
         Document.UndoStack.ClearAll();
         Document.UndoStack.MarkAsOriginalFile();
         FilePath = path;
     }
 
+    /// <summary>
+    /// Puts back a tab from the saved session. <paramref name="unsaved"/> marks text that is not in
+    /// <paramref name="filePath"/> (or an untitled tab with text), so the tab shows as modified.
+    /// </summary>
+    public void Restore(string text, string? filePath, bool unsaved)
+    {
+        Document.Text = text;
+        Document.UndoStack.ClearAll();
+        Document.UndoStack.MarkAsOriginalFile();
+        FilePath = filePath;
+        _restoredUnsaved = unsaved;
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(Title));
+    }
+
     public async Task SaveFileAsync(string path)
     {
         await File.WriteAllTextAsync(path, Document.Text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         FilePath = path;
+        _restoredUnsaved = false;
         Document.UndoStack.MarkAsOriginalFile();
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(Title));
