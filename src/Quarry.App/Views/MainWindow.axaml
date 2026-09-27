@@ -124,8 +124,11 @@
         </Border>
 
         <Grid ColumnDefinitions="280,4,*">
-            <!-- Object explorer -->
-            <DockPanel Background="{DynamicResource PaneBackground}">
+            <!-- Side panel: object explorer and query history -->
+            <TabControl Background="{DynamicResource PaneBackground}" Padding="0"
+                        SelectedIndex="{Binding SelectedSidePanel}">
+            <TabItem Header="Explorer" FontSize="13">
+            <DockPanel>
                 <TextBox DockPanel.Dock="Top" Margin="6" PlaceholderText="Filter objects"
                          Text="{Binding Filter}" />
                 <TreeView x:Name="Explorer"
@@ -150,6 +153,11 @@
                     </TreeView.ItemTemplate>
                 </TreeView>
             </DockPanel>
+            </TabItem>
+            <TabItem Header="History" FontSize="13">
+                <views:HistoryView DataContext="{Binding History}" />
+            </TabItem>
+            </TabControl>
 
             <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource PaneBorder}" />
 

@@ -13,6 +13,9 @@ internal static class JsonFile
         Converters = { new JsonStringEnumConverter() },
     };
 
+    /// <summary>Single-line JSON, for JSON Lines files.</summary>
+    public static readonly JsonSerializerOptions CompactOptions = new(Options) { WriteIndented = false };
+
     public static T? Read<T>(string path)
     {
         if (!File.Exists(path))

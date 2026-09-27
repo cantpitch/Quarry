@@ -222,6 +222,80 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public async Task QueryHistory_RecordsFiltersAndReopens()
+    {
+        if (TestServer() is not { } server)
+            return; // needs QUARRY_TEST_CONNECTION
+        await server.ConnectAsync();
+
+        var window = new MainWindow { Width = 1300, Height = 820 };
+        window.Show();
+        var vm = window.ViewModel;
+        vm.Servers.Add(server);
+        var doc = await vm.NewQueryAsync(server, "master");
+        var editor = EditorOf(window);
+        string marker = $"hist_{Guid.NewGuid():N}"[..13];
+
+        // Run Script records the whole script, batches joined with GO.
+        editor.Document.Text = $"SELECT 7 AS {marker}\nGO\nSELECT 8 AS eight";
+        await vm.RunScriptAsync();
+        await WaitUntilAsync(() => !doc.IsExecuting && vm.History.Items.FirstOrDefault()?.Entry.Text.Contains(marker) == true);
+        var entry = vm.History.Items[0].Entry;
+        Assert.Equal($"SELECT 7 AS {marker}\nGO\nSELECT 8 AS eight", entry.Text);
+        Assert.Equal(Core.History.HistoryRunKind.Script, entry.Kind);
+        Assert.Equal(Core.History.HistoryOutcome.Succeeded, entry.Outcome);
+        Assert.Equal("master", entry.Database);
+        Assert.Equal(2, entry.RowCount);
+        Assert.Equal(2, entry.ResultSetCount);
+
+        // Run Query records just the statement, and failures are marked.
+        editor.Document.Text = "SELECT 1\n\nSELECT * FROM dbo.no_such_table_quarry";
+        editor.CaretOffset = editor.Document.TextLength;
+        await vm.RunQueryAsync();
+        await WaitUntilAsync(() => !doc.IsExecuting && vm.History.Items[0].Entry.Text.Contains("no_such_table_quarry"));
+        Assert.Equal("SELECT * FROM dbo.no_such_table_quarry", vm.History.Items[0].Entry.Text);
+        Assert.Equal(Core.History.HistoryOutcome.Failed, vm.History.Items[0].Outcome);
+        Assert.Equal(Core.History.HistoryRunKind.Query, vm.History.Items[0].Entry.Kind);
+
+        // Persisted to disk.
+        Assert.Contains(new Core.History.QueryHistoryStore().Load(), e => e.Id == entry.Id);
+
+        // Filter.
+        vm.History.Filter = marker;
+        var match = Assert.Single(vm.History.Items);
+        Assert.Equal(entry.Id, match.Entry.Id);
+        vm.SelectedSidePanel = 1;
+        Snapshot(window, "09-history");
+
+        // Reopen: new tab with the SQL, same server and database.
+        int tabs = vm.Documents.Count;
+        await vm.History.OpenAsync(match);
+        Assert.Equal(tabs + 1, vm.Documents.Count);
+        Assert.Equal(entry.Text, vm.SelectedDocument!.Document.Text);
+        Assert.Same(server, vm.SelectedDocument.Server);
+        Assert.Equal("master", vm.SelectedDocument.Database);
+
+        // Turning history off stops recording.
+        var original = Services.AppServices.Settings;
+        try
+        {
+            Services.AppServices.Settings = original with { SaveQueryHistory = false };
+            vm.History.Filter = "";
+            int count = vm.History.Items.Count;
+            var reopened = vm.SelectedDocument;
+            await vm.RunScriptAsync();
+            await WaitUntilAsync(() => !reopened.IsExecuting);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(count, vm.History.Items.Count);
+        }
+        finally
+        {
+            Services.AppServices.Settings = original;
+        }
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task ConnectDialog_Renders()
     {
         var owner = new Window { Width = 900, Height = 700 };

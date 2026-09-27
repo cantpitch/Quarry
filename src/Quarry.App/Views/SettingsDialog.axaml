@@ -29,6 +29,10 @@
             <CheckBox Grid.Row="5" Grid.Column="1" Content="Stop running batches after an error" IsChecked="{Binding StopOnError}" />
         </Grid>
         <StackPanel Spacing="8">
+            <TextBlock Text="History" FontWeight="SemiBold" />
+            <CheckBox Content="Save executed queries in the History panel" IsChecked="{Binding SaveQueryHistory}" />
+        </StackPanel>
+        <StackPanel Spacing="8">
             <TextBlock Text="Export" FontWeight="SemiBold" />
             <CheckBox Content="Include column headers" IsChecked="{Binding ExportIncludeHeaders}" />
             <CheckBox Content="Write a UTF-8 byte order mark (lets Excel open CSV files with accents correctly)"

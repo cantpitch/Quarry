@@ -21,6 +21,8 @@ public partial class MainWindow : Window, IDialogService
         DataContext = ViewModel;
         // Tunnel so shortcuts win over the editor's own key handling (e.g. Ctrl+Enter).
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        _ = ViewModel.History.LoadAsync();
+        SettingsChanged += (_, _) => ViewModel.History.SettingsChanged();
     }
 
     /// <summary>Opens an empty query tab and the connect dialog, as on application start.</summary>
@@ -158,6 +160,9 @@ public partial class MainWindow : Window, IDialogService
 
     public Task ShowErrorAsync(string title, string message)
         => MessageDialog.ShowAsync(this, title, message);
+
+    public Task<bool> ConfirmAsync(string title, string message)
+        => MessageDialog.ConfirmAsync(this, title, message);
 
     public async Task<bool> ShowSettingsAsync()
     {

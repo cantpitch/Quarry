@@ -12,6 +12,7 @@ using Quarry.App.Services;
 using Quarry.Core.Connections;
 using Quarry.Core.Execution;
 using Quarry.Core.Export;
+using Quarry.Core.History;
 using Quarry.Core.Results;
 using Quarry.Parsing;
 
@@ -244,7 +245,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
     {
         if (IsExecuting || Editor is null || GetUnits(mode) is not { } units || !await EnsureServerAsync())
             return;
-        await ExecuteAsync(Server!, units, exportPath: null);
+        await ExecuteAsync(Server!, units, KindOf(mode), exportPath: null);
     }
 
     /// <summary>
@@ -258,8 +259,12 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         path ??= await PickExportPathAsync();
         if (path is null || !await EnsureServerAsync())
             return;
-        await ExecuteAsync(Server!, units, path);
+        await ExecuteAsync(Server!, units, KindOf(mode), path);
     }
+
+    private HistoryRunKind KindOf(RunMode mode)
+        => Editor?.Selection.IsEmpty == false ? HistoryRunKind.Selection
+            : mode == RunMode.Script ? HistoryRunKind.Script : HistoryRunKind.Query;
 
     /// <summary>What Run Script / Run Query would send, or null (with a status message) when nothing.</summary>
     private IReadOnlyList<ExecutionUnit>? GetUnits(RunMode mode)
@@ -293,7 +298,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
     }
 
     /// <param name="exportPath">When set, result sets are streamed to this file instead of the grid.</param>
-    private async Task ExecuteAsync(ServerConnection server, IReadOnlyList<ExecutionUnit> units, string? exportPath)
+    private async Task ExecuteAsync(ServerConnection server, IReadOnlyList<ExecutionUnit> units, HistoryRunKind kind, string? exportPath)
     {
         Results.Clear();
         Messages.Clear();
@@ -303,6 +308,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         SelectedOutputTab = 0;
         IsExecuting = true;
         StatusText = exportPath is null ? "Executing…" : $"Executing to {Path.GetFileName(exportPath)}…";
+        string? startDatabase = Database;
         _cts = new CancellationTokenSource();
         _stopwatch.Restart();
         _elapsedTimer.Start();
@@ -397,6 +403,29 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         AddMessage(new ExecutionMessage(MessageKind.Status,
             string.Create(CultureInfo.CurrentCulture, $"Completion time: {DateTimeOffset.Now:O}")));
 
+        if (ExecutionRecorded is { } record)
+        {
+            await record(new QueryHistoryEntry
+            {
+                Timestamp = DateTimeOffset.Now - _stopwatch.Elapsed,
+                Server = server.Profile.Server,
+                ServerDisplayName = server.Profile.DisplayName,
+                Database = startDatabase,
+                Text = QueryHistoryEntry.ScriptFromUnits(units, AppServices.Settings.BatchSeparator),
+                Kind = kind,
+                Outcome = summary switch
+                {
+                    { Cancelled: true } => HistoryOutcome.Cancelled,
+                    { Succeeded: true } => HistoryOutcome.Succeeded,
+                    _ => HistoryOutcome.Failed,
+                },
+                DurationMs = (long)_stopwatch.Elapsed.TotalMilliseconds,
+                RowCount = rows,
+                ResultSetCount = exportSink?.ResultSetCount ?? Results.Count,
+                ExportPath = exporter?.Files.FirstOrDefault(),
+            });
+        }
+
         if (Results.Count == 0)
             SelectedOutputTab = 1;
         await RenderTextOutputAsync();
@@ -415,6 +444,9 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
     }
 
     // ---- Export ----
+
+    /// <summary>Called after every execution so it can be added to the query history.</summary>
+    public Func<QueryHistoryEntry, Task>? ExecutionRecorded { get; set; }
 
     /// <summary>Supplied by the window: shows a save dialog for an export file.</summary>
     public Func<string, Task<string?>>? PickExportFile { get; set; }

@@ -9,4 +9,6 @@ public static class AppPaths
     public static string ConnectionsFile => Path.Combine(DataDirectory, "connections.json");
 
     public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
+
+    public static string HistoryFile => Path.Combine(DataDirectory, "history.jsonl");
 }

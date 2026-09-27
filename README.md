@@ -17,6 +17,10 @@ A cross-platform SQL Server query tool for developers and analysts, built with C
   - **Excel:** one worksheet per result set, with typed numbers and dates and a frozen header row.
   - **Text:** all result sets in one file.
 - **Run Script to File (Shift+F5) / Run Query to File:** streams results straight from the server into the file without loading the grid. The grid row cap doesn't apply and memory use stays flat, so this is the way to extract large results.
+- **Query history:** the History tab next to the object explorer lists everything you've run, newest first. Each entry shows the SQL that was sent, server, database, duration, row count and whether it succeeded.
+  - Search to filter entries, and double-click one to reopen it in a new tab on the same server and database.
+  - Right-click to run it again, insert it at the cursor, copy it, or delete it.
+  - History is saved in `history.jsonl` in Quarry's data folder and keeps the newest 5,000 entries. It can be turned off in Settings or cleared from the panel.
 - **Messages pane:** shows PRINT output, errors and row counts. Double-click an error to jump to its line.
 - **Connections:** SQL Server authentication, Windows authentication (Windows only), and Microsoft Entra ID (interactive/MFA, default credential, service principal, device code).
 - **Saved passwords:** kept in the OS keychain (Windows Credential Manager, macOS Keychain, or libsecret on Linux).

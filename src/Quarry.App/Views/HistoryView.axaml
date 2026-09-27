@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Quarry.App.ViewModels"
+             x:Class="Quarry.App.Views.HistoryView"
+             x:DataType="vm:HistoryViewModel">
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="6">
+            <TextBox PlaceholderText="Search history" Text="{Binding Filter}" />
+            <Button Grid.Column="1" Classes="toolbar" Margin="4,0,0,0" Content="Clear"
+                    Command="{Binding ClearCommand}" ToolTip.Tip="Delete all query history" />
+        </Grid>
+        <Panel>
+            <TextBlock Classes="status" Margin="12" TextWrapping="Wrap" HorizontalAlignment="Center"
+                       Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" />
+            <ListBox x:Name="List" ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}"
+                     Background="Transparent"
+                     DoubleTapped="OnDoubleTapped" ContextRequested="OnContextRequested" KeyDown="OnKeyDown">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="vm:HistoryItemViewModel">
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ToolTip.Tip="{Binding ToolTip}"
+                              Background="Transparent">
+                            <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"
+                                     Classes.succeeded="{Binding Outcome, Converter={x:Static vm:HistoryConverters.IsSucceeded}}"
+                                     Classes.failed="{Binding Outcome, Converter={x:Static vm:HistoryConverters.IsFailed}}"
+                                     Classes.cancelled="{Binding Outcome, Converter={x:Static vm:HistoryConverters.IsCancelled}}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Summary}" TextTrimming="CharacterEllipsis"
+                                       FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="status" FontSize="11"
+                                       Text="{Binding Details}" TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Panel>
+    </DockPanel>
+
+    <UserControl.Styles>
+        <Style Selector="Ellipse.succeeded">
+            <Setter Property="Fill" Value="#2E9A4F" />
+        </Style>
+        <Style Selector="Ellipse.failed">
+            <Setter Property="Fill" Value="{DynamicResource ErrorText}" />
+        </Style>
+        <Style Selector="Ellipse.cancelled">
+            <Setter Property="Fill" Value="{DynamicResource StatusText}" />
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="8,5" />
+        </Style>
+    </UserControl.Styles>
+</UserControl>
