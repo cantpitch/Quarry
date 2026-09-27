@@ -238,7 +238,8 @@ public class SqlFormatterTests
             "END",
             "GO",
             "EXEC dbo.p 1"),
-            Format(input));
+            // Raw string literals take the source file's line endings (CRLF in a Windows checkout).
+            Format(input.ReplaceLineEndings("\n")));
     }
 
     [Fact]
@@ -326,9 +327,11 @@ public class SqlFormatterTests
             insert #t (Id, Name) select Id, Name from dbo.Customers where Name like N'A%';
             update #t set Name = upper(Name) output inserted.Id, deleted.Name into @log where Id > 10;
             """;
-        var result = SqlFormatter.Format(script);
+        // Raw string literals take the source file's line endings (CRLF in a Windows checkout).
+        string sql = script.ReplaceLineEndings("\n");
+        var result = SqlFormatter.Format(sql);
         Assert.Empty(result.Problems);
-        Assert.True(SqlFormatter.SameTokens(script.Replace("\ngo\n", "\n"), result.Text.Replace("\nGO\n", "\n").Replace("\ngo\n", "\n")));
+        Assert.True(SqlFormatter.SameTokens(sql.Replace("\ngo\n", "\n"), result.Text.Replace("\nGO\n", "\n")));
         Assert.Equal(result.Text, SqlFormatter.Format(result.Text).Text);
     }
 
