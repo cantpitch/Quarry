@@ -4,6 +4,17 @@
 
 A cross-platform SQL Server query tool for developers and analysts, built with C# and Avalonia. It runs on Windows, macOS and Linux.
 
+![A formatted query with its results in the grid, next to the object explorer](docs/screenshots/query-results.png)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Results shown as fixed-width text](docs/screenshots/results-text.png) | ![The History panel with successful and failed runs](docs/screenshots/history.png) |
+| **Results as text:** the same results as fixed-width text; CSV and TSV work the same way. | **History:** everything you've run, searchable, one click to reopen. |
+| ![Formatting settings with a live preview](docs/screenshots/formatting-settings.png) | ![The connect dialog with saved connections](docs/screenshots/connect.png) |
+| **Formatting:** choose the SQL formatter's style, with a live preview. | **Connections:** saved connections for SQL Server, Windows and Microsoft Entra authentication. |
+
 ## Features
 - **Object explorer:** connect to several servers at once. Each server has its own tree: databases, tables, views, stored procedures, functions and synonyms, down to columns, indexes and parameters. The tree has a filter box.
 - **Context menus:** Select Top 1000, Script as CREATE/EXECUTE, Copy Name. Double-click a node to insert its name into the editor.
@@ -55,6 +66,12 @@ export QUARRY_TEST_CONNECTION="Server=localhost;Integrated Security=true;TrustSe
 ```
 
 The headless UI tests save rendered screenshots to `QUARRY_UI_SNAPSHOTS`, or to a temp folder if that isn't set.
+
+The README screenshots in `docs/screenshots` are rendered by a test from a demo database. It creates (and replaces) a `QuarryDemo` database, so point it at a throwaway server. CI does this on every run and uploads the images as the `readme-screenshots` artifact. To render them yourself:
+
+```bash
+QUARRY_TEST_CONNECTION="Server=...;..." QUARRY_README_SCREENSHOTS=docs/screenshots dotnet test tests/Quarry.App.Tests --filter "FullyQualifiedName~ReadmeScreenshots"
+```
 
 ## Publish
 ```bash

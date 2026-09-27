@@ -87,6 +87,19 @@ jobs:
       - name: Test against SQL Server
         run: dotnet test --configuration Release --no-build --filter "Category!=Platform" --logger "trx" --results-directory TestResults
 
+      # Renders docs/screenshots against a demo database in this throwaway server.
+      - name: Render README screenshots
+        env:
+          QUARRY_README_SCREENSHOTS: ${{ github.workspace }}/readme-screenshots
+        run: dotnet test tests/Quarry.App.Tests --configuration Release --no-build --filter "FullyQualifiedName~ReadmeScreenshots"
+
+      - name: Upload README screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme-screenshots
+          path: readme-screenshots
+          if-no-files-found: error
+
       - name: Upload UI snapshots
         if: always()
         uses: actions/upload-artifact@v4

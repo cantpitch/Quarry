@@ -31,7 +31,7 @@ public static class TestAppBuilder
     }
 }
 
-public class UiTests
+public partial class UiTests
 {
     /// <summary>Where rendered frames are saved for inspection (QUARRY_UI_SNAPSHOTS, else a temp folder).</summary>
     private static readonly string SnapshotDir =
