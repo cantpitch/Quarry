@@ -61,7 +61,35 @@ The headless UI tests save rendered screenshots to `QUARRY_UI_SNAPSHOTS`, or to 
 dotnet publish src/Quarry.App -c Release -r win-x64 --self-contained
 ```
 
-Replace `win-x64` with `osx-arm64`, `osx-x64` or `linux-x64` for the other platforms. On Linux, saving passwords requires libsecret (`libsecret-1-0`) and a running Secret Service such as GNOME Keyring or KWallet.
+Replace `win-x64` with `osx-arm64`, `osx-x64` or `linux-x64` for the other platforms.
+
+To make a release, push a version tag:
+
+```bash
+git tag v1.0.0
+```
+
+```bash
+git push origin v1.0.0
+```
+
+The Release workflow runs the tests, then builds self-contained packages. It attaches them, with a `SHA256SUMS.txt`, to a GitHub release with generated notes.
+
+| Platform | Architectures | Package |
+|---|---|---|
+| Windows | x64, arm64 | `.zip` |
+| macOS | arm64, x64 | `.zip` holding `Quarry.app` |
+| Linux | x64, arm64 | `.tar.gz` |
+
+A tag with a suffix, such as `v1.0.0-beta.1`, makes a pre-release. Running the workflow by hand from the Actions tab builds the same packages as workflow artifacts, without a release.
+
+The macOS app isn't notarized. After unzipping, clear the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine Quarry.app
+```
+
+On Linux, saving passwords requires libsecret (`libsecret-1-0`) and a running Secret Service such as GNOME Keyring or KWallet.
 
 ## Layout
 | Project | Contents |

@@ -1,0 +1,157 @@
+name: Release
+
+# Push a version tag (v1.2.3, or v1.2.3-beta.1 for a pre-release) to test, build every platform and
+# publish a GitHub release. Running it by hand, or changing this file in a pull request, builds the
+# same packages as workflow artifacts only.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: [".github/workflows/release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      QUARRY_NO_DOCKER: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build --configuration Release -warnaserror
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --filter "Category!=Platform"
+
+  publish:
+    name: Publish (${{ matrix.rid }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64, os: windows-latest }
+          - { rid: win-arm64, os: windows-latest }
+          - { rid: osx-arm64, os: macos-latest }
+          - { rid: osx-x64, os: macos-latest }
+          - { rid: linux-x64, os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-latest }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Work out the version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME is not a version like v1.2.3 or v1.2.3-beta.1"
+              exit 1
+            fi
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "PACKAGE=Quarry-$version-${{ matrix.rid }}" >> "$GITHUB_ENV"
+
+      - name: Publish
+        run: >
+          dotnet publish src/Quarry.App --configuration Release --runtime ${{ matrix.rid }} --self-contained
+          -p:Version=$VERSION -p:DebugType=none --output out/Quarry
+
+      # Native debug symbols that come with the Skia/HarfBuzz packages (~100 MB on Windows).
+      - name: Remove debug symbols
+        run: find out/Quarry -name '*.pdb' -delete
+
+      - name: Package (Windows)
+        if: startsWith(matrix.rid, 'win-')
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path out/Quarry -DestinationPath "dist/$env:PACKAGE.zip"
+
+      - name: Package (Linux)
+        if: startsWith(matrix.rid, 'linux-')
+        run: |
+          mkdir -p dist
+          tar -czf "dist/$PACKAGE.tar.gz" -C out Quarry
+
+      # An unsigned app bundle; it is ad-hoc signed so Apple Silicon will run it.
+      - name: Package (macOS)
+        if: startsWith(matrix.rid, 'osx-')
+        run: |
+          app=out/Quarry.app
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" dist
+          cp -R out/Quarry/. "$app/Contents/MacOS/"
+          chmod +x "$app/Contents/MacOS/Quarry"
+          cat > "$app/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Quarry</string>
+            <key>CFBundleDisplayName</key><string>Quarry</string>
+            <key>CFBundleIdentifier</key><string>io.github.cantpitch.quarry</string>
+            <key>CFBundleExecutable</key><string>Quarry</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION%%-*}</string>
+            <key>CFBundleVersion</key><string>${VERSION%%-*}</string>
+            <key>LSMinimumSystemVersion</key><string>12.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+          codesign --force --deep --sign - "$app"
+          ditto -c -k --keepParent "$app" "dist/$PACKAGE.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release
+    if: github.ref_type == 'tag'
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          [[ "$GITHUB_REF_NAME" == *-* ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            --title "Quarry ${GITHUB_REF_NAME#v}" "${flags[@]}"
