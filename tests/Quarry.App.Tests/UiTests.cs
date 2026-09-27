@@ -10,7 +10,10 @@ using Quarry.App.ViewModels;
 using Quarry.App.Views;
 using Quarry.Core;
 using Quarry.Core.Connections;
+using Quarry.Core.Credentials;
 using Quarry.Core.Results;
+using Quarry.Core.Session;
+using Quarry.App.Services;
 
 [assembly: AvaloniaTestApplication(typeof(Quarry.App.Tests.TestAppBuilder))]
 
@@ -35,6 +38,9 @@ public class UiTests
         Environment.GetEnvironmentVariable("QUARRY_UI_SNAPSHOTS") is { Length: > 0 } dir ? dir : Path.Combine(Path.GetTempPath(), "quarry-ui-snapshots");
 
     private static ServerConnection? TestServer()
+        => TestProfile() is var (profile, secret) ? new ServerConnection(profile, secret) : null;
+
+    private static (ConnectionProfile Profile, string? Secret)? TestProfile()
     {
         string? cs = Environment.GetEnvironmentVariable("QUARRY_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(cs))
@@ -47,7 +53,7 @@ public class UiTests
             UserName = b.IntegratedSecurity ? null : b.UserID,
             TrustServerCertificate = b.TrustServerCertificate,
         };
-        return new ServerConnection(profile, b.IntegratedSecurity ? null : b.Password);
+        return (profile, b.IntegratedSecurity ? null : b.Password);
     }
 
     private static void Snapshot(Window window, string name)
@@ -109,6 +115,7 @@ public class UiTests
         var doc = await vm.NewQueryAsync(server, "master");
         var editor = EditorOf(window);
         Assert.Equal("master", doc.Database);
+        Assert.Equal($"{server.Profile.DisplayName}/master", doc.ServerAndDatabase);
 
         const string script = """
             -- Two statements without semicolons, then a batch separator
@@ -381,5 +388,165 @@ public class UiTests
         dialog.Close();
         owner.Close();
         await Task.CompletedTask;
+    }
+
+    [AvaloniaFact]
+    public async Task Session_ReopensTabsAndReportsWhatItCannot()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"quarry-session-ui-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var store = new SessionStore(Path.Combine(dir, "session.json"), Path.Combine(dir, "session"));
+            var profiles = new ProfileStore(new InMemoryCredentialStore(), Path.Combine(dir, "connections.json"));
+            var noPassword = new ConnectionProfile { Name = "No password", Server = "nowhere.invalid", UserName = "sa" };
+            profiles.Save(noPassword, null);
+            string clean = Path.Combine(dir, "clean.sql");
+            string modified = Path.Combine(dir, "modified.sql");
+            string deleted = Path.Combine(dir, "deleted.sql");
+            File.WriteAllText(clean, "select 1");
+            File.WriteAllText(modified, "select 2");
+            File.WriteAllText(deleted, "select 3");
+
+            var before = new MainWindowViewModel(new TestDialogs(), sessionStore: store, profiles: profiles);
+            var untitled = await before.NewQueryAsync(null, null, "select 'untitled'");
+            untitled.OutputMode = OutputMode.Text;
+            untitled.CaretOffset = 7;
+            var cleanDoc = await before.NewQueryAsync(null, null);
+            await cleanDoc.LoadFileAsync(clean);
+            var modifiedDoc = await before.NewQueryAsync(null, null);
+            await modifiedDoc.LoadFileAsync(modified);
+            modifiedDoc.Document.Insert(modifiedDoc.Document.TextLength, " -- edited");
+            await (await before.NewQueryAsync(null, null)).LoadFileAsync(deleted);
+            var waiting = await before.NewQueryAsync(null, null, "select db_name()");
+            waiting.RememberedConnection = new RememberedConnection(noPassword.Id, "No password", "tempdb");
+            var orphan = await before.NewQueryAsync(null, null);
+            orphan.RememberedConnection = new RememberedConnection(Guid.NewGuid(), "Old server", null);
+            before.SelectedDocument = modifiedDoc;
+            Assert.True(before.SaveSession());
+
+            File.WriteAllText(clean, "select 10"); // saved tabs are read again from their file
+            File.Delete(modified);                 // unsaved changes outlive their file
+            File.Delete(deleted);
+
+            var dialogs = new TestDialogs();
+            var after = new MainWindowViewModel(dialogs, sessionStore: store, profiles: profiles);
+            Assert.True(await after.RestoreSessionAsync());
+            var docs = after.Documents.ToList();
+            Assert.Equal(5, docs.Count);
+
+            Assert.Equal(untitled.FileName, docs[0].FileName);
+            Assert.Equal("select 'untitled'", docs[0].Document.Text);
+            Assert.True(docs[0].IsDirty);
+            Assert.Equal(OutputMode.Text, docs[0].OutputMode);
+            Assert.Equal(7, docs[0].CaretOffset);
+
+            Assert.Equal(clean, docs[1].FilePath);
+            Assert.Equal("select 10", docs[1].Document.Text);
+            Assert.False(docs[1].IsDirty);
+
+            Assert.Equal(modified, docs[2].FilePath);
+            Assert.Equal("select 2 -- edited", docs[2].Document.Text);
+            Assert.True(docs[2].IsDirty);
+            Assert.Contains("no longer exists", docs[2].StatusText);
+            Assert.Same(docs[2], after.SelectedDocument);
+
+            Assert.Null(docs[3].Server);
+            Assert.Equal("Could not reconnect to No password. No password is saved for it; connect again to enter one.", docs[3].StatusText);
+            Assert.Equal("Could not reconnect to Old server. The saved connection no longer exists.", docs[4].StatusText);
+
+            var (title, message) = Assert.Single(dialogs.Errors);
+            Assert.Equal("Reopen Tabs", title);
+            Assert.Contains($"{deleted} no longer exists.", message);
+
+            // New tabs do not reuse a restored untitled name.
+            var added = await after.NewQueryAsync(null, null);
+            Assert.DoesNotContain(docs, d => d.FileName == added.FileName);
+            await after.CloseDocumentAsync(added);
+
+            // A tab that could not reconnect keeps its connection for the next start.
+            after.SelectedDocument = docs[2];
+            Assert.True(after.SaveSession());
+            var saved = store.Load()!;
+            Assert.Equal(noPassword.Id, saved.Documents[3].ProfileId);
+            Assert.Equal("tempdb", saved.Documents[3].Database);
+            Assert.Equal(2, saved.SelectedIndex);
+
+            // Saving the modified tab to its file drops its backup.
+            await docs[2].SaveFileAsync(modified);
+            Assert.True(after.SaveSession());
+            Assert.False(store.Load()!.Documents[2].HasBackup);
+            Assert.Null(store.ReadBackup(docs[2].SessionId));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Session_ReconnectsToTheSavedDatabase()
+    {
+        if (TestProfile() is not var (profile, secret))
+            return; // needs QUARRY_TEST_CONNECTION
+        string dir = Path.Combine(Path.GetTempPath(), $"quarry-session-db-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new SessionStore(Path.Combine(dir, "session.json"), Path.Combine(dir, "session"));
+            var profiles = new ProfileStore(new InMemoryCredentialStore(), Path.Combine(dir, "connections.json"));
+            profiles.Save(profile, secret);
+            var server = new ServerConnection(profile, secret);
+            await server.ConnectAsync();
+
+            var before = new MainWindowViewModel(new TestDialogs(), sessionStore: store, profiles: profiles);
+            await before.NewQueryAsync(server, "tempdb", "select db_name()");
+            await before.NewQueryAsync(server, "no_such_database_" + Guid.NewGuid().ToString("N"));
+            Assert.True(await before.ConfirmExitAsync());
+
+            var after = new MainWindowViewModel(new TestDialogs(), sessionStore: store, profiles: profiles);
+            Assert.True(await after.RestoreSessionAsync());
+            var connected = Assert.Single(after.Servers);
+            Assert.Equal(profile.Id, connected.Profile.Id);
+            Assert.All(after.Documents, d => Assert.Same(connected, d.Server));
+            Assert.Equal("tempdb", after.Documents[0].Database);
+            Assert.Equal($"{profile.DisplayName}/tempdb", after.Documents[0].ServerAndDatabase);
+            Assert.StartsWith("Reconnected to", after.Documents[0].StatusText);
+            Assert.Equal("master", after.Documents[1].Database);
+            Assert.Contains("is not available", after.Documents[1].StatusText);
+            Assert.True(await after.ConfirmExitAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>Records errors; every other dialog is dismissed.</summary>
+    private sealed class TestDialogs : IDialogService
+    {
+        public List<(string Title, string Message)> Errors { get; } = [];
+
+        public Task<ServerConnection?> ShowConnectDialogAsync() => Task.FromResult<ServerConnection?>(null);
+
+        public Task<SaveChoice> AskSaveChangesAsync(string documentName) => Task.FromResult(SaveChoice.Discard);
+
+        public Task ShowErrorAsync(string title, string message)
+        {
+            Errors.Add((title, message));
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ConfirmAsync(string title, string message) => Task.FromResult(false);
+
+        public Task<bool> ShowSettingsAsync() => Task.FromResult(false);
+
+        public Task<string?> PickOpenFileAsync() => Task.FromResult<string?>(null);
+
+        public Task<string?> PickSaveFileAsync(string suggestedName) => Task.FromResult<string?>(null);
+
+        public Task<string?> PickExportFileAsync(string suggestedName) => Task.FromResult<string?>(null);
+
+        public Task SetClipboardTextAsync(string text) => Task.CompletedTask;
     }
 }

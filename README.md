@@ -30,7 +30,11 @@ A cross-platform SQL Server query tool for developers and analysts, built with C
 - **Messages pane:** shows PRINT output, errors and row counts. Double-click an error to jump to its line.
 - **Connections:** SQL Server authentication, Windows authentication (Windows only), and Microsoft Entra ID (interactive/MFA, default credential, service principal, device code).
 - **Saved passwords:** kept in the OS keychain (Windows Credential Manager, macOS Keychain, or libsecret on Linux).
-- **Per-tab sessions:** each query tab keeps its own connection open, so temp tables, `SET` options and `USE` carry over between runs.
+- **Per-tab sessions:** each query tab keeps its own connection open, so temp tables, `SET` options and `USE` carry over between runs. Each tab shows its server and database (`server/database`) before the file name.
+- **Tabs come back on restart:** open tabs are saved automatically, a couple of seconds after each change and when Quarry closes, so nothing needs saving by hand.
+  - On the next start, saved files are reopened from where they were saved, and untitled tabs and unsaved changes come back from Quarry's data folder.
+  - Each tab reconnects in the background to its server and database, using the saved connection and password.
+  - A file that no longer exists is reported and skipped. A tab whose server can't be reached stays open, unconnected, with the reason in the status bar. A database that no longer exists falls back to the connection's default database.
 
 ## Build and run
 You need the .NET 10 SDK.
