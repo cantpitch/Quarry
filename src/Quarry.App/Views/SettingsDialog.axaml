@@ -4,7 +4,7 @@
         x:Class="Quarry.App.Views.SettingsDialog"
         x:DataType="vm:SettingsViewModel"
         Title="Settings"
-        Width="820" Height="800" MinWidth="640" MinHeight="480"
+        Width="820" Height="860" MinWidth="640" MinHeight="480"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
     <DockPanel Margin="16">
@@ -56,39 +56,48 @@
 
             <TabItem Header="Formatting">
                 <DockPanel Margin="4,12,4,0">
-                    <Grid DockPanel.Dock="Top" ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
                         <TextBlock Classes="label" Text="Keywords" />
                         <ComboBox Grid.Column="1" MinWidth="360" ItemsSource="{Binding KeywordCases}" SelectedItem="{Binding SelectedKeywordCase}" />
 
-                        <TextBlock Grid.Row="1" Classes="label" Text="Clause layout" />
-                        <ComboBox Grid.Row="1" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ClauseLayouts}" SelectedItem="{Binding SelectedClauseLayout}" />
+                        <TextBlock Grid.Row="1" Classes="label" Text="Data types" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" MinWidth="360" ItemsSource="{Binding KeywordCases}" SelectedItem="{Binding SelectedDataTypeCase}" />
 
-                        <TextBlock Grid.Row="2" Classes="label" Text="SELECT and SET lists" />
-                        <ComboBox Grid.Row="2" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ListLayouts}" SelectedItem="{Binding SelectedListLayout}" />
+                        <TextBlock Grid.Row="2" Classes="label" Text="Clause layout" />
+                        <ComboBox Grid.Row="2" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ClauseLayouts}" SelectedItem="{Binding SelectedClauseLayout}" />
 
-                        <TextBlock Grid.Row="3" Classes="label" Text="Commas" />
-                        <ComboBox Grid.Row="3" Grid.Column="1" MinWidth="360" ItemsSource="{Binding CommaPlacements}" SelectedItem="{Binding SelectedCommaPlacement}" />
+                        <TextBlock Grid.Row="3" Classes="label" Text="SELECT and SET lists" />
+                        <ComboBox Grid.Row="3" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ListLayouts}" SelectedItem="{Binding SelectedListLayout}" />
 
-                        <TextBlock Grid.Row="4" Classes="label" Text="Extra JOIN … ON conditions" />
-                        <ComboBox Grid.Row="4" Grid.Column="1" MinWidth="360" ItemsSource="{Binding JoinConditionLayouts}" SelectedItem="{Binding SelectedJoinConditions}" />
+                        <TextBlock Grid.Row="4" Classes="label" Text="Commas" />
+                        <ComboBox Grid.Row="4" Grid.Column="1" MinWidth="360" ItemsSource="{Binding CommaPlacements}" SelectedItem="{Binding SelectedCommaPlacement}" />
 
-                        <CheckBox Grid.Row="5" Grid.Column="1" Content="Start each WHERE / HAVING AND or OR on a new line"
+                        <TextBlock Grid.Row="5" Classes="label" Text="Extra JOIN … ON conditions" />
+                        <ComboBox Grid.Row="5" Grid.Column="1" MinWidth="360" ItemsSource="{Binding JoinConditionLayouts}" SelectedItem="{Binding SelectedJoinConditions}" />
+
+                        <CheckBox Grid.Row="6" Grid.Column="1" Content="Start each WHERE / HAVING AND or OR on a new line"
                                   IsChecked="{Binding WhereConditionsOnNewLines}" />
 
-                        <TextBlock Grid.Row="6" Classes="label" Text="Extra IF / WHILE conditions" />
-                        <ComboBox Grid.Row="6" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ControlFlowConditionLayouts}" SelectedItem="{Binding SelectedControlFlowConditions}" />
+                        <TextBlock Grid.Row="7" Classes="label" Text="Extra IF / WHILE conditions" />
+                        <ComboBox Grid.Row="7" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ControlFlowConditionLayouts}" SelectedItem="{Binding SelectedControlFlowConditions}" />
 
-                        <TextBlock Grid.Row="7" Classes="label" Text="BEGIN … END" />
-                        <ComboBox Grid.Row="7" Grid.Column="1" MinWidth="360" ItemsSource="{Binding BlockLayouts}" SelectedItem="{Binding SelectedBlockLayout}" />
+                        <TextBlock Grid.Row="8" Classes="label" Text="BEGIN … END" />
+                        <ComboBox Grid.Row="8" Grid.Column="1" MinWidth="360" ItemsSource="{Binding BlockLayouts}" SelectedItem="{Binding SelectedBlockLayout}" />
 
-                        <TextBlock Grid.Row="8" Classes="label" Text="CASE expressions" />
-                        <ComboBox Grid.Row="8" Grid.Column="1" MinWidth="360" ItemsSource="{Binding CaseLayouts}" SelectedItem="{Binding SelectedCaseLayout}" />
+                        <TextBlock Grid.Row="9" Classes="label" Text="CASE expressions" />
+                        <ComboBox Grid.Row="9" Grid.Column="1" MinWidth="360" ItemsSource="{Binding CaseLayouts}" SelectedItem="{Binding SelectedCaseLayout}" />
 
-                        <CheckBox Grid.Row="9" Grid.Column="1" Content="Keep a CASE with a single WHEN on one line"
+                        <CheckBox Grid.Row="10" Grid.Column="1" Content="Keep a CASE with a single WHEN on one line"
                                   IsChecked="{Binding SingleWhenCaseOnOneLine}" />
 
-                        <TextBlock Grid.Row="10" Classes="label" Text="Indent size" />
-                        <NumericUpDown Grid.Row="10" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="1" Maximum="16" Increment="1" FormatString="0"
+                        <TextBlock Grid.Row="11" Classes="label" Text="CREATE TABLE" />
+                        <StackPanel Grid.Row="11" Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                            <CheckBox Content="Line up names and data types" IsChecked="{Binding AlignColumnDefinitions}" />
+                            <CheckBox Content="&quot;(&quot; on its own line" IsChecked="{Binding TableParenthesisOnOwnLine}" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="12" Classes="label" Text="Indent size" />
+                        <NumericUpDown Grid.Row="12" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="1" Maximum="16" Increment="1" FormatString="0"
                                        Value="{Binding IndentSize}" />
                     </Grid>
                     <TextBlock DockPanel.Dock="Top" Text="Preview" FontWeight="SemiBold" Margin="0,16,0,6" />

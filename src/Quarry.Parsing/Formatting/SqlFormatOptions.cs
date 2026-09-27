@@ -73,6 +73,9 @@ public sealed record SqlFormatOptions
 
     public KeywordCase KeywordCase { get; init; } = KeywordCase.Upper;
 
+    /// <summary>Case of built-in data type names (int, varchar(max), …).</summary>
+    public KeywordCase DataTypeCase { get; init; } = KeywordCase.Lower;
+
     public ClauseLayout ClauseLayout { get; init; } = ClauseLayout.Aligned;
 
     /// <summary>SELECT columns and UPDATE SET assignments.</summary>
@@ -96,6 +99,12 @@ public sealed record SqlFormatOptions
 
     /// <summary>Keep a CASE with a single WHEN (and no nested CASE or subquery) on one line.</summary>
     public bool SingleWhenCaseOnOneLine { get; init; } = true;
+
+    /// <summary>In CREATE TABLE (and table variables / table types), line up column names, data types and the rest.</summary>
+    public bool AlignColumnDefinitions { get; init; } = true;
+
+    /// <summary>Put the "(" of a table definition on its own line instead of after the table name.</summary>
+    public bool TableParenthesisOnOwnLine { get; init; } = true;
 
     public int IndentSize { get; init; } = 4;
 
