@@ -466,6 +466,108 @@ public class SqlFormatterTests
             Format(BlockSql, new SqlFormatOptions { BlockLayout = BlockLayout.Indented }));
     }
 
+    private const string TableSql =
+        "create table dbo.Orders(Id int not null identity(1,1), CustomerId int not null, -- who\n" +
+        "Status varchar(20) null constraint DF_Orders_Status default ('Open'),\n\n" +
+        "Total DECIMAL(10,2) not null, Twice as (Total * 2) persisted, Notes nvarchar(max),\n" +
+        "constraint PK_Orders primary key clustered (Id), index IX_Orders_Status nonclustered (Status, Total)) on [PRIMARY]";
+
+    [Fact]
+    public void CreateTable_AlignedColumns()
+    {
+        Assert.Equal(Lines(
+            "CREATE TABLE dbo.Orders",
+            "(",
+            "    Id         int            NOT NULL IDENTITY(1, 1),",
+            "    CustomerId int            NOT NULL, -- who",
+            "    Status     varchar(20)    NULL CONSTRAINT DF_Orders_Status DEFAULT ('Open'),",
+            "",
+            "    Total      decimal(10, 2) NOT NULL,",
+            "    Twice      AS (Total * 2) PERSISTED,",
+            "    Notes      nvarchar(max),",
+            "    CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED (Id),",
+            "    INDEX IX_Orders_Status NONCLUSTERED (Status, Total)",
+            ") ON [PRIMARY]"),
+            Format(TableSql));
+    }
+
+    [Fact]
+    public void CreateTable_OtherOptions()
+    {
+        Assert.Equal(Lines(
+            "CREATE TABLE dbo.Orders (",
+            "    Id int NOT NULL IDENTITY(1, 1),",
+            "    CustomerId int NOT NULL, -- who",
+            "    Status varchar(20) NULL CONSTRAINT DF_Orders_Status DEFAULT ('Open'),",
+            "",
+            "    Total DECIMAL(10, 2) NOT NULL,",
+            "    Twice AS (Total * 2) PERSISTED,",
+            "    Notes nvarchar(max),",
+            "    CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED (Id),",
+            "    INDEX IX_Orders_Status NONCLUSTERED (Status, Total)",
+            ") ON [PRIMARY]"),
+            Format(TableSql, new SqlFormatOptions
+            {
+                AlignColumnDefinitions = false,
+                TableParenthesisOnOwnLine = false,
+                DataTypeCase = KeywordCase.Preserve,
+            }));
+        Assert.Equal(Lines(
+            "declare @t table",
+            "(",
+            "    id   INT     primary key",
+            "  , name SYSNAME",
+            ")"),
+            Format("declare @t table (id int primary key, name SYSNAME)",
+                new SqlFormatOptions { CommaPlacement = CommaPlacement.Leading, KeywordCase = KeywordCase.Lower, DataTypeCase = KeywordCase.Upper }));
+    }
+
+    [Fact]
+    public void CreateTable_TemporalTableAndTableType()
+    {
+        Assert.Equal(Lines(
+            "CREATE TABLE dbo.Hist",
+            "(",
+            "    Id        int       NOT NULL,",
+            "    ValidFrom datetime2 GENERATED ALWAYS AS ROW START HIDDEN NOT NULL,",
+            "    ValidTo   datetime2 GENERATED ALWAYS AS ROW END HIDDEN NOT NULL,",
+            "    PERIOD FOR SYSTEM_TIME (ValidFrom, ValidTo)",
+            ")",
+            "CREATE TYPE dbo.IdList AS TABLE",
+            "(",
+            "    Id int NOT NULL PRIMARY KEY",
+            ")"),
+            Format("create table dbo.Hist (Id int not null, ValidFrom datetime2 generated always as row start hidden not null, " +
+                   "ValidTo datetime2 generated always as row end hidden not null, period for system_time (ValidFrom, ValidTo))\n" +
+                   "create type dbo.IdList as table (Id int not null primary key)"));
+    }
+
+    [Fact]
+    public void CreateTable_NamesThatLookLikeOptionsAreNotRecased()
+    {
+        // "persisted" is a column name here, and "Sparse" a constraint name: only real options are recased.
+        Assert.Equal(Lines(
+            "CREATE TABLE t",
+            "(",
+            "    persisted int CONSTRAINT Sparse DEFAULT 0,",
+            "    b         AS (persisted * 2) PERSISTED",
+            ")"),
+            Format("create table t (persisted int constraint Sparse default 0, b as (persisted * 2) persisted)"));
+    }
+
+    [Fact]
+    public void DataTypes_AreCasedEverywhere()
+    {
+        Assert.Equal(Lines(
+            "DECLARE @x int = CAST(1 AS nvarchar(max)),",
+            "        @y double precision,",
+            "        @z sysname,",
+            "        @n [INT]",
+            "SELECT CONVERT(varchar(10), GETDATE(), 120)"),
+            Format("declare @x INT = cast(1 as NVARCHAR(MAX)), @y Double Precision, @z sysname, @n [INT]\n" +
+                   "select convert(VARCHAR(10), getdate(), 120)"));
+    }
+
     [Fact]
     public void RealisticScript_FormatsEveryBatch()
     {

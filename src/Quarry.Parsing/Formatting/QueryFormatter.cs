@@ -51,19 +51,23 @@ internal sealed class QueryFormatter
     private readonly List<FormatToken> _t;
     private readonly SqlFormatOptions _o;
     private readonly LineWriter _w;
+    private readonly IReadOnlySet<TSqlParserToken>? _dataTypes;
 
     /// <param name="allKeywords">
     /// Treat every word in the range as a keyword, for ranges known to contain only keywords
     /// (BEGIN TRY, SET NOCOUNT ON, …) where the lexer reports some of them as identifiers.
     /// </param>
-    public QueryFormatter(IList<TSqlParserToken> stream, int first, int last, SqlFormatOptions options, LineWriter writer, bool allKeywords = false)
+    /// <param name="keywords">Tokens known from the syntax tree to be keywords, though they lex as identifiers.</param>
+    public QueryFormatter(IList<TSqlParserToken> stream, int first, int last, SqlFormatOptions options, LineWriter writer, bool allKeywords = false,
+        IReadOnlySet<TSqlParserToken>? keywords = null, IReadOnlySet<TSqlParserToken>? dataTypes = null)
     {
         _o = options;
+        _dataTypes = dataTypes;
         _w = writer;
         _t = BuildTokens(stream, first, last);
-        if (allKeywords)
+        foreach (var token in _t.Where(t => t.Type == TSqlTokenType.Identifier))
         {
-            foreach (var token in _t.Where(t => t.Type == TSqlTokenType.Identifier))
+            if (allKeywords || keywords?.Contains(token.Source) == true)
                 token.ForceKeyword = true;
         }
     }
@@ -765,6 +769,8 @@ internal sealed class QueryFormatter
     {
         if (previous is null)
             return false;
+        if (current.IsComment)
+            return true;
         if (current.Text is "," or ")" or ";" or "." or "::" || previous.Text is "(" or "." or "::")
             return false;
         if (previous.IsUnary)
@@ -788,6 +794,8 @@ internal sealed class QueryFormatter
     private string Cased(int index)
     {
         var tok = _t[index];
+        if (_dataTypes?.Contains(tok.Source) == true)
+            return Apply(_o.DataTypeCase, tok.Text);
         if (_o.KeywordCase == KeywordCase.Preserve || tok.IsComment)
             return tok.Text;
         // Never recase names in a multi-part identifier (a.b), whatever they look like.
@@ -801,6 +809,13 @@ internal sealed class QueryFormatter
                 && BuiltInFunctions.Contains(tok.Text));
         if (!keyword)
             return tok.Text;
-        return _o.KeywordCase == KeywordCase.Upper ? tok.Text.ToUpperInvariant() : tok.Text.ToLowerInvariant();
+        return Apply(_o.KeywordCase, tok.Text);
     }
+
+    private static string Apply(KeywordCase casing, string text) => casing switch
+    {
+        KeywordCase.Upper => text.ToUpperInvariant(),
+        KeywordCase.Lower => text.ToLowerInvariant(),
+        _ => text,
+    };
 }

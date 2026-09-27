@@ -19,7 +19,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         "left join Table3 c on a.OtherId = c.OtherId where a.Something = 5 and not exists " +
         "(select 1 from Table4 d where d.Table4Id = a.Table4Id) group by a.Id, a.Name\n" +
         "if @Mode = 1 and @Debug = 0 begin update Table1 set Status = case when Total > 100 then 'Large' " +
-        "when Total > 10 then 'Medium' else 'Small' end where Id = @Id end else print 'Skipped'";
+        "when Total > 10 then 'Medium' else 'Small' end where Id = @Id end else print 'Skipped'\n" +
+        "create table dbo.Table5 (Id int not null primary key, Name nvarchar(100) null, Created datetime2 not null default sysutcdatetime())";
 
     public SettingsViewModel()
     {
@@ -36,6 +37,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         var f = s.Formatting;
         _selectedKeywordCase = KeywordCases.First(c => c.Value == f.KeywordCase);
+        _selectedDataTypeCase = KeywordCases.First(c => c.Value == f.DataTypeCase);
+        _alignColumnDefinitions = f.AlignColumnDefinitions;
+        _tableParenthesisOnOwnLine = f.TableParenthesisOnOwnLine;
         _selectedClauseLayout = ClauseLayouts.First(c => c.Value == f.ClauseLayout);
         _selectedListLayout = ListLayouts.First(c => c.Value == f.ListLayout);
         _selectedCommaPlacement = CommaPlacements.First(c => c.Value == f.CommaPlacement);
@@ -147,6 +151,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     private Choice<KeywordCase> _selectedKeywordCase;
 
     [ObservableProperty]
+    private Choice<KeywordCase> _selectedDataTypeCase;
+
+    [ObservableProperty]
+    private bool _alignColumnDefinitions;
+
+    [ObservableProperty]
+    private bool _tableParenthesisOnOwnLine;
+
+    [ObservableProperty]
     private Choice<ClauseLayout> _selectedClauseLayout;
 
     [ObservableProperty]
@@ -182,6 +195,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private SqlFormatOptions FormatOptions => new()
     {
         KeywordCase = SelectedKeywordCase.Value,
+        DataTypeCase = SelectedDataTypeCase.Value,
+        AlignColumnDefinitions = AlignColumnDefinitions,
+        TableParenthesisOnOwnLine = TableParenthesisOnOwnLine,
         ClauseLayout = SelectedClauseLayout.Value,
         ListLayout = SelectedListLayout.Value,
         CommaPlacement = SelectedCommaPlacement.Value,
@@ -195,6 +211,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     };
 
     partial void OnSelectedKeywordCaseChanged(Choice<KeywordCase> value) => UpdatePreview();
+
+    partial void OnSelectedDataTypeCaseChanged(Choice<KeywordCase> value) => UpdatePreview();
+
+    partial void OnAlignColumnDefinitionsChanged(bool value) => UpdatePreview();
+
+    partial void OnTableParenthesisOnOwnLineChanged(bool value) => UpdatePreview();
 
     partial void OnSelectedClauseLayoutChanged(Choice<ClauseLayout> value) => UpdatePreview();
 
@@ -219,7 +241,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void UpdatePreview()
     {
         // The constructor runs this before every choice is assigned.
-        if (SelectedKeywordCase is null || SelectedClauseLayout is null || SelectedListLayout is null || SelectedCommaPlacement is null || SelectedJoinConditions is null
+        if (SelectedKeywordCase is null || SelectedDataTypeCase is null || SelectedClauseLayout is null || SelectedListLayout is null || SelectedCommaPlacement is null || SelectedJoinConditions is null
             || SelectedControlFlowConditions is null || SelectedBlockLayout is null || SelectedCaseLayout is null)
             return;
         Preview = SqlFormatter.Format(PreviewSql, FormatOptions).Text;

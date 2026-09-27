@@ -107,7 +107,8 @@ public static class SqlFormatter
                 var writer = new LineWriter(newline);
                 var stream = script.ScriptTokenStream;
                 var statements = script.Batches.SelectMany(b => b.Statements).ToList();
-                new StatementFormatter(stream, options, writer).FormatList(statements, 0, stream.Count - 1, 0);
+                var dataTypes = DataTypeNames.Collect(script);
+                new StatementFormatter(stream, options, writer, dataTypes).FormatList(statements, 0, stream.Count - 1, 0);
                 formatted = writer.ToString().Trim();
             }
             catch (Exception ex)
@@ -158,8 +159,12 @@ public static class SqlFormatter
 }
 
 /// <summary>Formats statements: DML through <see cref="QueryFormatter"/>, blocks with indentation, the rest verbatim.</summary>
-internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlFormatOptions options, LineWriter writer)
+internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlFormatOptions options, LineWriter writer,
+    IReadOnlySet<TSqlParserToken> dataTypes)
 {
+    private QueryFormatter Formatter(int first, int last, LineWriter? output = null, bool allKeywords = false, IReadOnlySet<TSqlParserToken>? keywords = null)
+        => new(stream, first, last, options, output ?? writer, allKeywords, keywords, dataTypes);
+
     private int Indent(int indent) => indent + options.IndentSize;
 
     /// <summary>Formats statements inside the token region [regionStart, regionEnd], keeping comments and blank lines between them.</summary>
@@ -197,7 +202,7 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
             bool comment = token.TokenType is TSqlTokenType.SingleLineComment or TSqlTokenType.MultilineComment;
             if (!(comment && newlines == 0 && writer.HasContent))
                 writer.StartLine(indent, blank: newlines >= 2);
-            new QueryFormatter(stream, i, i, options, writer).FormatInline(indent);
+            Formatter(i, i).FormatInline(indent);
             newlines = 0;
         }
         if (beforeStatement)
@@ -219,8 +224,17 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
             case SelectStatement or InsertStatement or UpdateStatement or DeleteStatement:
                 Query(statement.FirstTokenIndex, statement.LastTokenIndex);
                 break;
+            case CreateTableStatement { Definition: { } definition } create:
+                FormatTable(statement, create.SchemaObjectName, definition, indent);
+                break;
+            case DeclareTableVariableStatement { Body.Definition: { } definition } declareTable:
+                FormatTable(statement, declareTable.Body.VariableName, definition, indent);
+                break;
+            case CreateTypeTableStatement { Definition: { } definition } createType:
+                FormatTable(statement, createType.Name, definition, indent);
+                break;
             case DeclareVariableStatement { Declarations.Count: > 0 } declare:
-                new QueryFormatter(stream, declare.FirstTokenIndex, declare.LastTokenIndex, options, writer)
+                Formatter(declare.FirstTokenIndex, declare.LastTokenIndex)
                     .FormatList(stream[declare.Declarations[0].FirstTokenIndex], options.ListLayout == ListLayout.OnePerLine);
                 break;
             // Written inline so that CASE expressions and subqueries in them are laid out.
@@ -364,6 +378,195 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
         Inline(endCatch, statement.LastTokenIndex, indent, allKeywords: true);
     }
 
+    /// <summary>
+    /// CREATE TABLE, DECLARE @t TABLE and CREATE TYPE … AS TABLE: one column, constraint or index per
+    /// line inside the parentheses, with column names, data types and the rest lined up.
+    /// </summary>
+    private void FormatTable(TSqlStatement statement, TSqlFragment name, TableDefinition definition, int indent)
+    {
+        var elements = new List<(TSqlFragment Fragment, int First, int Last)>();
+        foreach (var fragment in definition.ColumnDefinitions.Concat<TSqlFragment>(definition.TableConstraints).Concat(definition.Indexes))
+            elements.Add((fragment, fragment.FirstTokenIndex, fragment.LastTokenIndex));
+        if (definition.SystemTimePeriod is { } period)
+        {
+            // The fragment starts at its first column; "PERIOD FOR SYSTEM_TIME (" comes before it.
+            int periodWord = period.FirstTokenIndex;
+            while (periodWord > statement.FirstTokenIndex && !stream[periodWord].Text.Equals("PERIOD", StringComparison.OrdinalIgnoreCase))
+                periodWord--;
+            elements.Add((period, periodWord, period.LastTokenIndex));
+        }
+        elements.Sort((a, b) => a.First.CompareTo(b.First));
+
+        int open = elements.Count > 0 ? LastSignificantBefore(elements[0].First, statement.FirstTokenIndex) : -1;
+        int close = elements.Count > 0 ? NextSignificant(elements[^1].Last + 1, statement.LastTokenIndex) : -1;
+        var commas = new int[elements.Count];
+        bool understood = open > statement.FirstTokenIndex && stream[open].Text == "(" && close >= 0 && stream[close].Text == ")";
+        for (int i = 1; understood && i < elements.Count; i++)
+        {
+            // Between two elements there must be exactly one comma (and whitespace or comments).
+            int comma = NextSignificant(elements[i - 1].Last + 1, elements[i].First - 1);
+            understood = comma >= 0 && stream[comma].Text == ","
+                         && NextSignificant(comma + 1, elements[i].First - 1) < 0;
+            commas[i] = comma;
+        }
+        if (!understood)
+        {
+            Verbatim(statement.FirstTokenIndex, statement.LastTokenIndex, indent);
+            return;
+        }
+
+        // Widths of the name and data type columns, from their formatted text.
+        int nameWidth = 0, typeWidth = 0;
+        if (options.AlignColumnDefinitions)
+        {
+            foreach (var column in definition.ColumnDefinitions)
+            {
+                nameWidth = Math.Max(nameWidth, Width(column.ColumnIdentifier.FirstTokenIndex, column.ColumnIdentifier.LastTokenIndex));
+                if (column.DataType is { } type)
+                    typeWidth = Math.Max(typeWidth, Width(type.FirstTokenIndex, type.LastTokenIndex));
+            }
+        }
+
+        Inline(statement.FirstTokenIndex, name.FirstTokenIndex - 1, indent, allKeywords: true); // CREATE TABLE / CREATE TYPE / DECLARE
+        Inline(name.FirstTokenIndex, open - 1, indent); // name [AS TABLE]
+        if (options.TableParenthesisOnOwnLine)
+            writer.StartLine(indent, blank: false);
+        else if (writer.PendingNewline)
+            writer.StartLine(indent, blank: false);
+        writer.Write("(", spaceBefore: writer.HasContent);
+        writer.Previous = new FormatToken(stream[open]);
+
+        int item = Indent(indent);
+        bool leading = options.CommaPlacement == CommaPlacement.Leading && item >= 2;
+        for (int i = 0; i < elements.Count; i++)
+        {
+            var element = elements[i];
+            if (i == 0)
+            {
+                WriteGap(open + 1, element.First - 1, item, beforeStatement: true);
+            }
+            else if (leading)
+            {
+                WriteGap(elements[i - 1].Last + 1, commas[i] - 1, item, beforeStatement: true);
+                writer.StartLine(item - 2, blank: false);
+                Inline(commas[i], commas[i], item);
+                WriteGap(commas[i] + 1, element.First - 1, item, beforeStatement: false);
+            }
+            else
+            {
+                Inline(elements[i - 1].Last + 1, commas[i], item); // comments before the comma, then the comma
+                WriteGap(commas[i] + 1, element.First - 1, item, beforeStatement: true);
+            }
+
+            if (element.Fragment is ColumnDefinition column)
+                WriteColumn(column, item, nameWidth, typeWidth);
+            else if (element.Fragment is SystemTimePeriodDefinition)
+            {
+                int columns = FindToken(TSqlTokenType.LeftParenthesis, element.First, element.Last);
+                Inline(element.First, columns - 1, Indent(item), allKeywords: true); // PERIOD FOR SYSTEM_TIME
+                Inline(columns, element.Last, Indent(item));
+            }
+            else
+                Inline(element.First, element.Last, Indent(item));
+        }
+
+        WriteGap(elements[^1].Last + 1, close - 1, item, beforeStatement: false);
+        writer.StartLine(indent, blank: false);
+        Inline(close, statement.LastTokenIndex, indent); // ) [WITH (…)] [ON …] [;]
+    }
+
+    /// <summary>Name, data type and the rest of a column definition, each starting at its own column.</summary>
+    private void WriteColumn(ColumnDefinition column, int item, int nameWidth, int typeWidth)
+    {
+        var name = column.ColumnIdentifier;
+        Inline(name.FirstTokenIndex, name.LastTokenIndex, Indent(item));
+        int restStart = (column.DataType?.LastTokenIndex ?? name.LastTokenIndex) + 1;
+        bool hasRest = restStart <= column.LastTokenIndex && NextNonWhitespace(restStart, column.LastTokenIndex) >= 0;
+
+        bool align = options.AlignColumnDefinitions;
+        if (column.DataType is { } type)
+        {
+            if (align)
+                writer.PadTo(item + nameWidth + 1);
+            Inline(type.FirstTokenIndex, type.LastTokenIndex, Indent(item));
+            if (hasRest && align)
+                writer.PadTo(item + nameWidth + 1 + typeWidth + 1);
+        }
+        else if (hasRest && align)
+        {
+            writer.PadTo(item + nameWidth + 1); // computed column: AS (…)
+        }
+        if (hasRest)
+            Formatter(restStart, column.LastTokenIndex, keywords: ColumnOptionKeywords(column, restStart))
+                .FormatInline(Indent(item));
+    }
+
+    /// <summary>
+    /// Column options that lex as identifiers (PERSISTED, SPARSE, GENERATED ALWAYS AS ROW START, …).
+    /// A word only counts when the syntax tree has that option, and it is not a name: not inside
+    /// parentheses, not after CONSTRAINT or REFERENCES, and not part of a dotted name.
+    /// </summary>
+    private HashSet<TSqlParserToken> ColumnOptionKeywords(ColumnDefinition column, int restStart)
+    {
+        var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (column.IsPersisted)
+            words.Add("PERSISTED");
+        if (column.IsRowGuidCol)
+            words.Add("ROWGUIDCOL");
+        if (column.IsHidden)
+            words.Add("HIDDEN");
+        if (column.IsMasked)
+            words.Add("MASKED");
+        if (column.StorageOptions is { } storage)
+        {
+            if (storage.SparseOption != SparseColumnOption.None)
+                words.UnionWith(["SPARSE", "COLUMN_SET", "ALL_SPARSE_COLUMNS"]);
+            if (storage.IsFileStream)
+                words.Add("FILESTREAM");
+        }
+        if (column.GeneratedAlways is not null)
+            words.UnionWith(["GENERATED", "ALWAYS", "ROW", "START", "TRANSACTION_ID", "SEQUENCE_NUMBER"]);
+
+        var keywords = new HashSet<TSqlParserToken>(ReferenceEqualityComparer.Instance);
+        int depth = 0;
+        TSqlParserToken? previous = null;
+        for (int i = restStart; i <= column.LastTokenIndex; i++)
+        {
+            var token = stream[i];
+            if (token.TokenType is TSqlTokenType.WhiteSpace or TSqlTokenType.SingleLineComment or TSqlTokenType.MultilineComment)
+                continue;
+            if (token.Text == "(")
+                depth++;
+            else if (token.Text == ")")
+                depth--;
+            else if (depth == 0 && token.TokenType == TSqlTokenType.Identifier && words.Contains(token.Text)
+                     && previous?.TokenType is not (TSqlTokenType.Constraint or TSqlTokenType.References)
+                     && previous?.Text != "." && stream[i + 1].Text != ".")
+                keywords.Add(token);
+            previous = token;
+        }
+        return keywords;
+    }
+
+    /// <summary>Length of the formatted text of a token range, or 0 if it spans lines.</summary>
+    private int Width(int first, int last)
+    {
+        var scratch = new LineWriter("\n");
+        Formatter(first, last, scratch).FormatInline(0);
+        string text = scratch.ToString();
+        return text.Contains('\n') ? 0 : text.Length;
+    }
+
+    private int NextNonWhitespace(int from, int to)
+    {
+        for (int i = from; i <= to && i < stream.Count; i++)
+        {
+            if (stream[i].TokenType is not (TSqlTokenType.WhiteSpace or TSqlTokenType.EndOfFile))
+                return i;
+        }
+        return -1;
+    }
+
     /// <summary>CREATE/ALTER PROCEDURE, FUNCTION or TRIGGER: header as written, body statements formatted.</summary>
     private void FormatModule(TSqlStatement module, IList<TSqlStatement> body, int indent)
     {
@@ -373,11 +576,11 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
     }
 
     private void Query(int first, int last)
-        => new QueryFormatter(stream, first, last, options, writer).FormatQuery(writer.Column);
+        => Formatter(first, last).FormatQuery(writer.Column);
 
     /// <summary>IF / WHILE and their condition, split at AND / OR per <see cref="SqlFormatOptions.ControlFlowConditions"/>.</summary>
     private void Conditions(int first, BooleanExpression predicate, int indent)
-        => new QueryFormatter(stream, first, predicate.LastTokenIndex, options, writer)
+        => Formatter(first, predicate.LastTokenIndex)
             .FormatConditions(stream[predicate.FirstTokenIndex], options.ControlFlowConditions, Indent(indent));
 
     private bool HasComment(int from, int to)
@@ -393,7 +596,7 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
     private void Inline(int first, int last, int continuation, bool allKeywords = false)
     {
         if (last >= first)
-            new QueryFormatter(stream, first, last, options, writer, allKeywords).FormatInline(continuation);
+            Formatter(first, last, allKeywords: allKeywords).FormatInline(continuation);
     }
 
     /// <summary>
@@ -402,7 +605,7 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
     /// </summary>
     private void Verbatim(int first, int last, int indent, bool allKeywords = false)
     {
-        var cased = new QueryFormatter(stream, first, last, options, writer, allKeywords).CasedTexts();
+        var cased = Formatter(first, last, allKeywords: allKeywords).CasedTexts();
         int shift = indent - (stream[first].Column - 1);
         var sb = new StringBuilder();
         for (int i = first; i <= last; i++)
@@ -460,5 +663,42 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
                 return i;
         }
         return floor;
+    }
+}
+
+/// <summary>Finds the tokens that name built-in data types (int, varchar, max, …), which are cased per <see cref="SqlFormatOptions.DataTypeCase"/>.</summary>
+internal sealed class DataTypeNames : TSqlFragmentVisitor
+{
+    private readonly IList<TSqlParserToken> _stream;
+    private readonly HashSet<TSqlParserToken> _tokens = new(ReferenceEqualityComparer.Instance);
+
+    private DataTypeNames(IList<TSqlParserToken> stream) => _stream = stream;
+
+    public static IReadOnlySet<TSqlParserToken> Collect(TSqlScript script)
+    {
+        var visitor = new DataTypeNames(script.ScriptTokenStream);
+        script.Accept(visitor);
+        return visitor._tokens;
+    }
+
+    public override void ExplicitVisit(SqlDataTypeReference node)
+    {
+        if (node.SqlDataTypeOption != SqlDataTypeOption.None && node.Name is { Count: 1 } name)
+        {
+            AddWords(name.FirstTokenIndex, name.LastTokenIndex); // e.g. "double precision"
+            foreach (var parameter in node.Parameters.OfType<MaxLiteral>())
+                AddWords(parameter.FirstTokenIndex, parameter.LastTokenIndex);
+        }
+        base.ExplicitVisit(node);
+    }
+
+    private void AddWords(int first, int last)
+    {
+        for (int i = first; i <= last && i < _stream.Count; i++)
+        {
+            if (_stream[i].TokenType is not (TSqlTokenType.WhiteSpace or TSqlTokenType.QuotedIdentifier
+                    or TSqlTokenType.SingleLineComment or TSqlTokenType.MultilineComment))
+                _tokens.Add(_stream[i]);
+        }
     }
 }

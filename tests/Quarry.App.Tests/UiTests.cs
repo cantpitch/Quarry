@@ -358,6 +358,12 @@ public class UiTests
         vm.SelectedControlFlowConditions = vm.ControlFlowConditionLayouts.First(c => c.Value == Parsing.Formatting.ConditionLayout.SameLine);
         Assert.Contains("if @Mode = 1 and @Debug = 0 begin\n", vm.Preview.Replace("\r\n", "\n"));
         Assert.Contains("end else\n", vm.Preview.Replace("\r\n", "\n"));
+
+        Assert.Contains("create table dbo.Table5\n(\n    Id      int           not null primary key,\n", vm.Preview.Replace("\r\n", "\n"));
+        vm.TableParenthesisOnOwnLine = false;
+        vm.AlignColumnDefinitions = false;
+        vm.SelectedDataTypeCase = vm.KeywordCases.First(c => c.Value == Parsing.Formatting.KeywordCase.Upper);
+        Assert.Contains("create table dbo.Table5 (\n    Id INT not null primary key,\n", vm.Preview.Replace("\r\n", "\n"));
         dialog.Close();
         owner.Close();
         await Task.CompletedTask;
