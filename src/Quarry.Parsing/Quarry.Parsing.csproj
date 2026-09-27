@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Quarry.Parsing.Tests" />
+  </ItemGroup>
+</Project>

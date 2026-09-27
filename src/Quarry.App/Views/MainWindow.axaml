@@ -1,0 +1,178 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Quarry.App.ViewModels"
+        xmlns:views="using:Quarry.App.Views"
+        xmlns:conn="using:Quarry.Core.Connections"
+        x:Class="Quarry.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Quarry"
+        Width="1400" Height="880" MinWidth="720" MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New Query" Command="{Binding NewQueryCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="_Open…" Command="{Binding OpenFileCommand}" InputGesture="Ctrl+O" />
+                <MenuItem Header="_Save" Command="{Binding SaveCommand}" InputGesture="Ctrl+S" IsEnabled="{Binding HasDocument}" />
+                <MenuItem Header="Save _As…" Command="{Binding SaveAsCommand}" InputGesture="Ctrl+Shift+S" IsEnabled="{Binding HasDocument}" />
+                <MenuItem Header="_Close Tab" Command="{Binding CloseDocumentCommand}" CommandParameter="{x:Null}" InputGesture="Ctrl+W" IsEnabled="{Binding HasDocument}" />
+                <Separator />
+                <MenuItem Header="Se_ttings…" Command="{Binding ShowSettingsCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="OnExitClick" />
+            </MenuItem>
+            <MenuItem Header="_Query">
+                <MenuItem Header="Run _Script" Command="{Binding RunScriptCommand}" InputGesture="F5" IsEnabled="{Binding HasDocument}" />
+                <MenuItem Header="Run _Query at Cursor" Command="{Binding RunQueryCommand}" InputGesture="Ctrl+Enter" IsEnabled="{Binding HasDocument}" />
+                <MenuItem Header="_Cancel" Command="{Binding CancelCommand}" InputGesture="Escape" IsEnabled="{Binding HasDocument}" />
+            </MenuItem>
+            <MenuItem Header="_Connection">
+                <MenuItem Header="_Connect…" Command="{Binding ConnectCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource PaneBackground}"
+                BorderBrush="{DynamicResource PaneBorder}" BorderThickness="0,0,0,1" Padding="6,4">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Classes="toolbar" Command="{Binding ConnectCommand}" ToolTip.Tip="Connect to a server">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.Connect}" />
+                        <TextBlock Text="Connect" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="toolbar" Command="{Binding NewQueryCommand}" ToolTip.Tip="New query (Ctrl+N)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.New}" />
+                        <TextBlock Text="New Query" />
+                    </StackPanel>
+                </Button>
+                <Rectangle Width="1" Margin="6,2" Fill="{DynamicResource PaneBorder}" />
+                <ComboBox x:Name="ServerPicker" Width="240" PlaceholderText="Not connected"
+                          ItemsSource="{Binding Servers}"
+                          SelectedItem="{Binding SelectedDocument.Server, Mode=OneWay}"
+                          IsEnabled="{Binding HasDocument}"
+                          SelectionChanged="OnServerPickerChanged"
+                          ToolTip.Tip="Server for this query tab">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate DataType="conn:ServerConnection">
+                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox Width="200" PlaceholderText="Database"
+                          ItemsSource="{Binding SelectedDocument.Databases}"
+                          SelectedItem="{Binding SelectedDocument.Database, Mode=TwoWay}"
+                          IsEnabled="{Binding HasDocument}"
+                          ToolTip.Tip="Database for this query tab" />
+                <Rectangle Width="1" Margin="6,2" Fill="{DynamicResource PaneBorder}" />
+                <Button Classes="toolbar" Command="{Binding RunScriptCommand}" IsEnabled="{Binding HasDocument}"
+                        ToolTip.Tip="Run the whole script, or the selection (F5)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.Run}" Foreground="#2E9A4F" />
+                        <TextBlock Text="Run Script" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="toolbar" Command="{Binding RunQueryCommand}" IsEnabled="{Binding HasDocument}"
+                        ToolTip.Tip="Run the statement under the cursor (Ctrl+Enter)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.RunLine}" Foreground="#2E9A4F" />
+                        <TextBlock Text="Run Query" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="toolbar" Command="{Binding CancelCommand}"
+                        IsEnabled="{Binding SelectedDocument.IsExecuting, FallbackValue=False}"
+                        ToolTip.Tip="Cancel execution (Esc)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.Stop}" Foreground="#C42B1C" />
+                        <TextBlock Text="Cancel" />
+                    </StackPanel>
+                </Button>
+                <Rectangle Width="1" Margin="6,2" Fill="{DynamicResource PaneBorder}" />
+                <TextBlock Classes="status" Text="Output" Margin="4,0" />
+                <ComboBox Width="100" ItemsSource="{Binding OutputModes}"
+                          SelectedItem="{Binding SelectedDocument.OutputMode, Mode=TwoWay}"
+                          IsEnabled="{Binding HasDocument}"
+                          ToolTip.Tip="How results are shown" />
+            </StackPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource PaneBackground}"
+                BorderBrush="{DynamicResource PaneBorder}" BorderThickness="0,1,0,0" Padding="10,3">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <TextBlock Classes="status" Text="{Binding SelectedDocument.StatusText, FallbackValue=Ready}" />
+                <TextBlock Grid.Column="1" Classes="status" Margin="16,0" Text="{Binding SelectedDocument.ConnectionText, FallbackValue=''}" />
+                <TextBlock Grid.Column="2" Classes="status" Margin="16,0" Text="{Binding SelectedDocument.ElapsedText, FallbackValue=''}" />
+                <TextBlock Grid.Column="3" Classes="status" Text="{Binding SelectedDocument.RowCountText, FallbackValue=''}" />
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="280,4,*">
+            <!-- Object explorer -->
+            <DockPanel Background="{DynamicResource PaneBackground}">
+                <TextBox DockPanel.Dock="Top" Margin="6" Watermark="Filter objects"
+                         Text="{Binding Filter}" />
+                <TreeView x:Name="Explorer"
+                          ItemsSource="{Binding ExplorerRoots}"
+                          SelectedItem="{Binding SelectedNode}"
+                          ContextRequested="OnExplorerContextRequested"
+                          DoubleTapped="OnExplorerDoubleTapped">
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="vm:ExplorerNode">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        </Style>
+                    </TreeView.Styles>
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate DataType="vm:ExplorerNode" ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal" ToolTip.Tip="{Binding ToolTip}" Background="Transparent">
+                                <PathIcon Classes="node"
+                                          Data="{Binding Icon, Converter={StaticResource IconConverter}}"
+                                          Foreground="{Binding Icon, Converter={StaticResource IconBrushConverter}}" />
+                                <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource PaneBorder}" />
+
+            <!-- Documents -->
+            <DockPanel Grid.Column="2">
+                <TabStrip DockPanel.Dock="Top" ItemsSource="{Binding Documents}" SelectedItem="{Binding SelectedDocument}">
+                    <TabStrip.ItemTemplate>
+                        <DataTemplate DataType="vm:QueryDocumentViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding FilePath}">
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontSize="13" />
+                                <Button Classes="toolbar" Padding="4,0" FontSize="11" Content="✕"
+                                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CloseDocumentCommand}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="Close (Ctrl+W)" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </TabStrip.ItemTemplate>
+                </TabStrip>
+                <Panel>
+                    <TextBlock Text="Connect to a server and open a new query to get started."
+                               Classes="status" HorizontalAlignment="Center"
+                               IsVisible="{Binding !HasDocument}" />
+                    <!-- One view per document, kept alive so editor and grid state survive tab switches. -->
+                    <ItemsControl ItemsSource="{Binding Documents}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Panel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:QueryDocumentViewModel">
+                                <views:QueryDocumentView IsVisible="{Binding IsActive}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Panel>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

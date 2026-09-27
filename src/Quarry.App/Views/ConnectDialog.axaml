@@ -1,0 +1,100 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Quarry.App.ViewModels"
+        xmlns:conn="using:Quarry.Core.Connections"
+        x:Class="Quarry.App.Views.ConnectDialog"
+        x:DataType="vm:ConnectDialogViewModel"
+        Title="Connect to SQL Server"
+        Width="760" Height="520" MinWidth="620" MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid ColumnDefinitions="220,*" RowDefinitions="*,Auto">
+        <!-- Saved profiles -->
+        <DockPanel Background="{DynamicResource PaneBackground}">
+            <TextBlock DockPanel.Dock="Top" Text="Saved connections" Classes="status" Margin="12,10,12,6" />
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="10">
+                <Button Content="New" Command="{Binding NewProfileCommand}" />
+                <Button Content="Delete" Command="{Binding DeleteProfileCommand}" />
+            </StackPanel>
+            <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" Background="Transparent"
+                     DoubleTapped="OnProfileDoubleTapped">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="conn:ConnectionProfile">
+                        <StackPanel>
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Server}" Classes="status" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- Form -->
+        <ScrollViewer Grid.Column="1" Padding="20,14">
+            <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                <TextBlock Classes="label" Text="Server" />
+                <TextBox Grid.Column="1" Text="{Binding Server}" Watermark="host, host\instance, host,1433 or name.database.windows.net" />
+
+                <TextBlock Grid.Row="1" Classes="label" Text="Authentication" />
+                <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding AuthOptions}" SelectedItem="{Binding SelectedAuth}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate DataType="vm:AuthOption">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBlock Grid.Row="2" Classes="label" Text="{Binding UserNameLabel}" IsVisible="{Binding ShowUserName}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding UserName}" IsVisible="{Binding ShowUserName}" />
+
+                <TextBlock Grid.Row="3" Classes="label" Text="{Binding SecretLabel}" IsVisible="{Binding ShowSecret}" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Secret}" PasswordChar="●" IsVisible="{Binding ShowSecret}" />
+
+                <CheckBox Grid.Row="4" Grid.Column="1" Content="Save password in the OS keychain"
+                          IsChecked="{Binding SaveSecret}" IsVisible="{Binding ShowSecret}" IsEnabled="{Binding CanSaveSecrets}" />
+
+                <TextBlock Grid.Row="5" Classes="label" Text="Database" />
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Database}" Watermark="(default)" />
+
+                <TextBlock Grid.Row="6" Classes="label" Text="Encrypt" />
+                <ComboBox Grid.Row="6" Grid.Column="1" Width="160" ItemsSource="{Binding EncryptModes}" SelectedItem="{Binding Encrypt}" />
+
+                <CheckBox Grid.Row="7" Grid.Column="1" Content="Trust server certificate" IsChecked="{Binding TrustServerCertificate}" />
+
+                <TextBlock Grid.Row="8" Classes="label" Text="Timeout (seconds)" />
+                <NumericUpDown Grid.Row="8" Grid.Column="1" Width="160" HorizontalAlignment="Left"
+                               Minimum="1" Maximum="600" Increment="5" FormatString="0"
+                               Value="{Binding ConnectTimeout}" />
+
+                <TextBlock Grid.Row="9" Classes="label" Text="Name (optional)" />
+                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Name}" Watermark="Shown in the object explorer" />
+
+                <TextBlock Grid.Row="10" Grid.Column="1" Classes="status" TextWrapping="Wrap"
+                           Text="{Binding KeychainNote}" IsVisible="{Binding !CanSaveSecrets}" />
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="1" Grid.ColumnSpan="2" BorderBrush="{DynamicResource PaneBorder}" BorderThickness="0,1,0,0" Padding="16,10">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="60" IsVisible="{Binding IsBusy}" />
+                    <SelectableTextBlock Text="{Binding StatusText}" TextWrapping="Wrap" MaxWidth="420"
+                                         Classes.error="{Binding StatusIsError}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Test" Command="{Binding TestCommand}" />
+                    <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />
+                    <Button Content="Connect" Command="{Binding ConnectCommand}" IsDefault="True" Classes="accent" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <Window.Styles>
+        <Style Selector="SelectableTextBlock.error">
+            <Setter Property="Foreground" Value="{DynamicResource ErrorText}" />
+        </Style>
+    </Window.Styles>
+</Window>

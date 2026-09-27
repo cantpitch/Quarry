@@ -1,0 +1,81 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:Quarry.App.Converters"
+             x:Class="Quarry.App.App"
+             Name="Quarry"
+             RequestedThemeVariant="Default">
+
+    <Application.Styles>
+        <FluentTheme DensityStyle="Compact" />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+        <StyleInclude Source="avares://Quarry/Styles.axaml" />
+    </Application.Styles>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <conv:IconConverter x:Key="IconConverter" />
+            <conv:IconBrushConverter x:Key="IconBrushConverter" />
+            <conv:MessageBrushConverter x:Key="MessageBrushConverter" />
+
+            <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono, Liberation Mono, monospace</FontFamily>
+
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="PaneBackground" Color="#F5F5F7" />
+                    <SolidColorBrush x:Key="PaneBorder" Color="#DDDDE2" />
+                    <SolidColorBrush x:Key="ErrorText" Color="#C42B1C" />
+                    <SolidColorBrush x:Key="StatusText" Color="#5C5C66" />
+                    <SolidColorBrush x:Key="Icon.Server" Color="#5C6BC0" />
+                    <SolidColorBrush x:Key="Icon.Database" Color="#C9892B" />
+                    <SolidColorBrush x:Key="Icon.Folder" Color="#D8A637" />
+                    <SolidColorBrush x:Key="Icon.Table" Color="#2F7FC1" />
+                    <SolidColorBrush x:Key="Icon.View" Color="#2E9A8F" />
+                    <SolidColorBrush x:Key="Icon.Code" Color="#8250DF" />
+                    <SolidColorBrush x:Key="Icon.Column" Color="#6E7781" />
+                    <SolidColorBrush x:Key="Icon.Key" Color="#BF8700" />
+                    <SolidColorBrush x:Key="Icon.Error" Color="#C42B1C" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="PaneBackground" Color="#202024" />
+                    <SolidColorBrush x:Key="PaneBorder" Color="#3A3A40" />
+                    <SolidColorBrush x:Key="ErrorText" Color="#FF6B5E" />
+                    <SolidColorBrush x:Key="StatusText" Color="#A0A0AA" />
+                    <SolidColorBrush x:Key="Icon.Server" Color="#9FA8DA" />
+                    <SolidColorBrush x:Key="Icon.Database" Color="#E0A84F" />
+                    <SolidColorBrush x:Key="Icon.Folder" Color="#E3B955" />
+                    <SolidColorBrush x:Key="Icon.Table" Color="#6CB6FF" />
+                    <SolidColorBrush x:Key="Icon.View" Color="#56D4C4" />
+                    <SolidColorBrush x:Key="Icon.Code" Color="#C297FF" />
+                    <SolidColorBrush x:Key="Icon.Column" Color="#9DA5AE" />
+                    <SolidColorBrush x:Key="Icon.Key" Color="#E3B341" />
+                    <SolidColorBrush x:Key="Icon.Error" Color="#FF6B5E" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- 16x16 icon geometries -->
+            <StreamGeometry x:Key="Geo.Server">F0 M2,1 H14 V7 H2 Z M4,3 H6 V5 H4 Z M2,9 H14 V15 H2 Z M4,11 H6 V13 H4 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Database">F0 M8,1 C4,1 2,2 2,3.5 V12.5 C2,14 4,15 8,15 C12,15 14,14 14,12.5 V3.5 C14,2 12,1 8,1 Z M8,2.5 C11,2.5 12.5,3.1 12.5,3.5 C12.5,3.9 11,4.5 8,4.5 C5,4.5 3.5,3.9 3.5,3.5 C3.5,3.1 5,2.5 8,2.5 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Folder">M1,3 H6 L8,5 H15 V14 H1 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Table">F0 M1,2 H15 V14 H1 Z M2.5,6 H7.5 V9 H2.5 Z M8.5,6 H13.5 V9 H8.5 Z M2.5,10 H7.5 V12.5 H2.5 Z M8.5,10 H13.5 V12.5 H8.5 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.View">F0 M1,2 H15 V14 H1 Z M2.5,5 H13.5 V12.5 H2.5 Z M8,6.5 C6,6.5 4.5,8 4,8.75 C4.5,9.5 6,11 8,11 C10,11 11.5,9.5 12,8.75 C11.5,8 10,6.5 8,6.5 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Procedure">F0 M3,1 H10 L13,4 V15 H3 Z M5,6 H11 V7 H5 Z M5,9 H11 V10 H5 Z M5,12 H9 V13 H5 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Function">M4,14 L7,8 L5,2 H7 L8.5,6.5 L11,2 H13 L9.5,9 L11.5,14 H9.5 L8.2,10.2 L6,14 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Column">M2,6 H14 V10 H2 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Key">F0 M5,4 A4,4 0 1 0 5,12 A4,4 0 1 0 5,4 Z M5,6.5 A1.5,1.5 0 1 1 5,9.5 A1.5,1.5 0 1 1 5,6.5 Z M9,7 H15 V9 H14 V11 H12 V9 H9 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Index">M2,3 H14 V5 H2 Z M2,7 H11 V9 H2 Z M2,11 H8 V13 H2 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Parameter">M2,7 H10 V4 L14,8 L10,12 V9 H2 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Synonym">M2,4 H10 V1 L14,5 L10,9 V6 H2 Z M14,10 H6 V7 L2,11 L6,15 V12 H14 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Error">M7,1 H9 V10 H7 Z M7,12 H9 V14 H7 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Loading">M3,7 H5 V9 H3 Z M7,7 H9 V9 H7 Z M11,7 H13 V9 H11 Z</StreamGeometry>
+
+            <!-- Toolbar glyphs -->
+            <StreamGeometry x:Key="Geo.Run">M4,2 L14,8 L4,14 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.RunLine">M2,3 L9,8 L2,13 Z M10,11 H15 V13 H10 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Stop">M3,3 H13 V13 H3 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.New">F0 M3,1 H10 L13,4 V15 H3 Z M4.5,2.5 V13.5 H11.5 V5 H9 V2.5 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Connect">M9,1 V5 H11 V1 H13 V5 H14 V8 C14,10 12.5,11.5 11,11.8 V15 H9 V11.8 C7.5,11.5 6,10 6,8 V5 H7 V1 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Refresh">M8,2 A6,6 0 1 0 14,8 H12 A4,4 0 1 1 8,4 V6 L11.5,3 L8,0 Z</StreamGeometry>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
