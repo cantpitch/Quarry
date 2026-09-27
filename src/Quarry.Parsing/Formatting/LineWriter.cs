@@ -62,6 +62,9 @@ internal sealed class LineWriter(string newline)
 
     public bool HasContent => _hasContent;
 
+    /// <summary>Number of line breaks written so far.</summary>
+    public int LineNumber { get; private set; }
+
     public int Column => _pendingIndent ?? (_sb.Length - _lineStart);
 
     public bool IsEmpty => _sb.Length == 0 && _pendingIndent is null or 0;
@@ -70,6 +73,7 @@ internal sealed class LineWriter(string newline)
     {
         TrimTrailingSpaces();
         _sb.Append(newline);
+        LineNumber++;
         _lineStart = _sb.Length;
         _pendingIndent = Math.Max(indent, 0);
         _hasContent = false;
@@ -129,6 +133,7 @@ internal sealed class LineWriter(string newline)
         _justPadded = false;
         _hasContent = true;
         int lastBreak = text.LastIndexOf('\n');
+        LineNumber += text.Count(c => c == '\n');
         if (lastBreak >= 0)
             _lineStart = _sb.Length - (text.Length - lastBreak - 1);
     }

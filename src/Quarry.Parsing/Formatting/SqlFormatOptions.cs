@@ -43,6 +43,30 @@ public enum ConditionLayout
     BodyColumn,
 }
 
+public enum BlockLayout
+{
+    /// <summary>BEGIN on its own line, lined up with IF / ELSE / WHILE.</summary>
+    Aligned,
+
+    /// <summary>BEGIN at the end of the IF / ELSE / WHILE line, and "END ELSE BEGIN".</summary>
+    SameLine,
+
+    /// <summary>BEGIN and END indented one level under IF / ELSE / WHILE, the body one more.</summary>
+    Indented,
+}
+
+public enum CaseLayout
+{
+    /// <summary>WHEN / ELSE on their own lines, indented one level; END lined up with CASE.</summary>
+    Indented,
+
+    /// <summary>The first WHEN stays on the CASE line and the others line up under it; END lined up with CASE.</summary>
+    Aligned,
+
+    /// <summary>The whole expression on one line.</summary>
+    SingleLine,
+}
+
 public sealed record SqlFormatOptions
 {
     public static SqlFormatOptions Default { get; } = new();
@@ -61,6 +85,17 @@ public sealed record SqlFormatOptions
 
     /// <summary>Where the extra AND/OR conditions of a JOIN … ON go.</summary>
     public ConditionLayout JoinConditions { get; init; } = ConditionLayout.UnderFirstCondition;
+
+    /// <summary>Where the extra AND/OR conditions of IF and WHILE go.</summary>
+    public ConditionLayout ControlFlowConditions { get; init; } = ConditionLayout.BodyColumn;
+
+    /// <summary>Where BEGIN / END go after IF, ELSE and WHILE.</summary>
+    public BlockLayout BlockLayout { get; init; } = BlockLayout.Aligned;
+
+    public CaseLayout CaseLayout { get; init; } = CaseLayout.Indented;
+
+    /// <summary>Keep a CASE with a single WHEN (and no nested CASE or subquery) on one line.</summary>
+    public bool SingleWhenCaseOnOneLine { get; init; } = true;
 
     public int IndentSize { get; init; } = 4;
 

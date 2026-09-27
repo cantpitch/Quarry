@@ -352,6 +352,12 @@ public class UiTests
         vm.SelectedClauseLayout = vm.ClauseLayouts.First(c => c.Value == Parsing.Formatting.ClauseLayout.Indented);
         vm.SelectedKeywordCase = vm.KeywordCases.First(c => c.Value == Parsing.Formatting.KeywordCase.Lower);
         Assert.StartsWith("select\n    a.Id,\n", vm.Preview.Replace("\r\n", "\n"));
+        Assert.Contains("= case\n", vm.Preview.Replace("\r\n", "\n"));
+
+        vm.SelectedBlockLayout = vm.BlockLayouts.First(c => c.Value == Parsing.Formatting.BlockLayout.SameLine);
+        vm.SelectedControlFlowConditions = vm.ControlFlowConditionLayouts.First(c => c.Value == Parsing.Formatting.ConditionLayout.SameLine);
+        Assert.Contains("if @Mode = 1 and @Debug = 0 begin\n", vm.Preview.Replace("\r\n", "\n"));
+        Assert.Contains("end else\n", vm.Preview.Replace("\r\n", "\n"));
         dialog.Close();
         owner.Close();
         await Task.CompletedTask;

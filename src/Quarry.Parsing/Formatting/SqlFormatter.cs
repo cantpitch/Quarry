@@ -219,6 +219,14 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
             case SelectStatement or InsertStatement or UpdateStatement or DeleteStatement:
                 Query(statement.FirstTokenIndex, statement.LastTokenIndex);
                 break;
+            case DeclareVariableStatement { Declarations.Count: > 0 } declare:
+                new QueryFormatter(stream, declare.FirstTokenIndex, declare.LastTokenIndex, options, writer)
+                    .FormatList(stream[declare.Declarations[0].FirstTokenIndex], options.ListLayout == ListLayout.OnePerLine);
+                break;
+            // Written inline so that CASE expressions and subqueries in them are laid out.
+            case SetVariableStatement { CursorDefinition: null } or ReturnStatement or PrintStatement:
+                Inline(statement.FirstTokenIndex, statement.LastTokenIndex, Indent(indent));
+                break;
             case BeginEndBlockStatement block:
                 FormatBlock(block, indent);
                 break;
@@ -226,10 +234,13 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
                 FormatIf(ifStatement, indent);
                 break;
             case WhileStatement loop:
-                Inline(loop.FirstTokenIndex, loop.Predicate.LastTokenIndex, indent);
-                WriteChild(loop.Statement, loop.Predicate.LastTokenIndex + 1, indent);
+            {
+                int line = writer.LineNumber;
+                Conditions(loop.FirstTokenIndex, loop.Predicate, indent);
+                WriteChild(loop.Statement, loop.Predicate.LastTokenIndex + 1, indent, ownerLine: line);
                 Inline(loop.Statement.LastTokenIndex + 1, loop.LastTokenIndex, indent);
                 break;
+            }
             case TryCatchStatement tryCatch:
                 FormatTryCatch(tryCatch, indent);
                 break;
@@ -284,15 +295,19 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
 
     private void FormatIf(IfStatement statement, int indent)
     {
-        Inline(statement.FirstTokenIndex, statement.Predicate.LastTokenIndex, indent);
-        WriteChild(statement.ThenStatement, statement.Predicate.LastTokenIndex + 1, indent);
+        int line = writer.LineNumber;
+        Conditions(statement.FirstTokenIndex, statement.Predicate, indent);
+        WriteChild(statement.ThenStatement, statement.Predicate.LastTokenIndex + 1, indent, ownerLine: line);
         int last = statement.ThenStatement.LastTokenIndex;
 
         if (statement.ElseStatement is { } elseStatement)
         {
             int elseToken = FindToken(TSqlTokenType.Else, last + 1, elseStatement.FirstTokenIndex - 1);
+            bool sameLine = options.BlockLayout == BlockLayout.SameLine && statement.ThenStatement is BeginEndBlockStatement
+                            && !HasComment(last + 1, elseToken - 1);
             WriteGap(last + 1, elseToken - 1, indent, beforeStatement: false);
-            writer.StartLine(indent, blank: false);
+            if (!sameLine)
+                writer.StartLine(indent, blank: false);
             Inline(elseToken, elseToken, indent);
             if (elseStatement is IfStatement elseIf)
             {
@@ -301,17 +316,25 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
             }
             else
             {
-                WriteChild(elseStatement, elseToken + 1, indent);
+                WriteChild(elseStatement, elseToken + 1, indent, ownerLine: writer.LineNumber);
             }
             last = elseStatement.LastTokenIndex;
         }
         Inline(last + 1, statement.LastTokenIndex, indent);
     }
 
-    /// <summary>The body of IF / ELSE / WHILE: a BEGIN…END block lines up with its owner, a single statement is indented.</summary>
-    private void WriteChild(TSqlStatement child, int gapFrom, int indent)
+    /// <summary>The body of IF / ELSE / WHILE: a BEGIN…END block is placed per <see cref="BlockLayout"/>, a single statement is indented.</summary>
+    /// <param name="ownerLine">The line the IF / ELSE / WHILE started on: BEGIN only joins it when the condition fitted on it.</param>
+    private void WriteChild(TSqlStatement child, int gapFrom, int indent, int ownerLine)
     {
-        int childIndent = child is BeginEndBlockStatement ? indent : Indent(indent);
+        bool block = child is BeginEndBlockStatement;
+        if (block && options.BlockLayout == BlockLayout.SameLine && writer.LineNumber == ownerLine && !writer.PendingNewline
+            && !HasComment(gapFrom, child.FirstTokenIndex - 1))
+        {
+            FormatStatement(child, indent); // IF … BEGIN
+            return;
+        }
+        int childIndent = block && options.BlockLayout != BlockLayout.Indented ? indent : Indent(indent);
         WriteGap(gapFrom, child.FirstTokenIndex - 1, childIndent, beforeStatement: true);
         FormatStatement(child, childIndent);
     }
@@ -351,6 +374,21 @@ internal sealed class StatementFormatter(IList<TSqlParserToken> stream, SqlForma
 
     private void Query(int first, int last)
         => new QueryFormatter(stream, first, last, options, writer).FormatQuery(writer.Column);
+
+    /// <summary>IF / WHILE and their condition, split at AND / OR per <see cref="SqlFormatOptions.ControlFlowConditions"/>.</summary>
+    private void Conditions(int first, BooleanExpression predicate, int indent)
+        => new QueryFormatter(stream, first, predicate.LastTokenIndex, options, writer)
+            .FormatConditions(stream[predicate.FirstTokenIndex], options.ControlFlowConditions, Indent(indent));
+
+    private bool HasComment(int from, int to)
+    {
+        for (int i = from; i <= to && i < stream.Count; i++)
+        {
+            if (stream[i].TokenType is TSqlTokenType.SingleLineComment or TSqlTokenType.MultilineComment)
+                return true;
+        }
+        return false;
+    }
 
     private void Inline(int first, int last, int continuation, bool allKeywords = false)
     {
