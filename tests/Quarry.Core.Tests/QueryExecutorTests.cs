@@ -148,6 +148,57 @@ public class QueryExecutorTests(SqlServerFixture server)
     }
 
     [SqlServerFact]
+    public async Task RunToFile_StreamsAllRowsWithoutRowLimit()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"quarry-run-to-file-{Guid.NewGuid():N}");
+        try
+        {
+            await using var conn = await server.OpenAsync();
+            const string script = """
+                SELECT TOP (60000) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n, N'row' AS label
+                FROM sys.all_columns a CROSS JOIN sys.all_columns b
+                PRINT 'between'
+                SELECT 'second' AS s
+                """;
+            var units = ExecutionPlanner.ForScript(ScriptAnalyzer.Analyze(script));
+
+            foreach (var format in new[] { Export.ExportFormat.Csv, Export.ExportFormat.Xlsx })
+            {
+                string path = Path.Combine(dir, "out" + Export.ResultExporter.Extension(format));
+                var messages = new RecordingSink();
+                using var exporter = Export.ResultExporter.Create(format, path);
+                var sink = new Export.ExportingSink(exporter, messages);
+                // The grid row cap must not apply when running to a file.
+                var summary = await QueryExecutor.ExecuteAsync(conn, units, sink, new ExecutionOptions(), CancellationToken.None);
+                exporter.Complete();
+
+                Assert.True(summary.Succeeded);
+                Assert.Equal(2, sink.ResultSetCount);
+                Assert.Equal(60001, sink.RowCount);
+                Assert.Empty(messages.ResultSets);
+                Assert.Contains(messages.Messages, m => m.Text == "between");
+
+                if (format == Export.ExportFormat.Csv)
+                {
+                    Assert.Equal(60001, File.ReadLines(path).Count()); // header + rows
+                    Assert.Equal(["s", "second"], File.ReadAllLines(Export.ResultExporter.PathForResultSet(path, 1)));
+                }
+                else
+                {
+                    using var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, false);
+                    var rows = doc.WorkbookPart!.WorksheetParts.Sum(p => p.Worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Row>().Count());
+                    Assert.Equal(60001 + 2, rows); // plus a header per sheet
+                }
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [SqlServerFact]
     public async Task UseDatabase_IsReflectedInCurrentDatabase()
     {
         await using var conn = await server.OpenAsync();

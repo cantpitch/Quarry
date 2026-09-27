@@ -75,6 +75,7 @@
             <StreamGeometry x:Key="Geo.Stop">M3,3 H13 V13 H3 Z</StreamGeometry>
             <StreamGeometry x:Key="Geo.New">F0 M3,1 H10 L13,4 V15 H3 Z M4.5,2.5 V13.5 H11.5 V5 H9 V2.5 Z</StreamGeometry>
             <StreamGeometry x:Key="Geo.Connect">M9,1 V5 H11 V1 H13 V5 H14 V8 C14,10 12.5,11.5 11,11.8 V15 H9 V11.8 C7.5,11.5 6,10 6,8 V5 H7 V1 Z</StreamGeometry>
+            <StreamGeometry x:Key="Geo.Export">M7,1 H9 V8 L11.5,5.5 L12.9,6.9 L8,11.8 L3.1,6.9 L4.5,5.5 L7,8 Z M2,12 H4 V13 H12 V12 H14 V15 H2 Z</StreamGeometry>
             <StreamGeometry x:Key="Geo.Refresh">M8,2 A6,6 0 1 0 14,8 H12 A4,4 0 1 1 8,4 V6 L11.5,3 L8,0 Z</StreamGeometry>
         </ResourceDictionary>
     </Application.Resources>

@@ -28,6 +28,12 @@
 
             <CheckBox Grid.Row="5" Grid.Column="1" Content="Stop running batches after an error" IsChecked="{Binding StopOnError}" />
         </Grid>
+        <StackPanel Spacing="8">
+            <TextBlock Text="Export" FontWeight="SemiBold" />
+            <CheckBox Content="Include column headers" IsChecked="{Binding ExportIncludeHeaders}" />
+            <CheckBox Content="Write a UTF-8 byte order mark (lets Excel open CSV files with accents correctly)"
+                      IsChecked="{Binding ExportUtf8Bom}" />
+        </StackPanel>
         <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />

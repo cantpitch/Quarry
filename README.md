@@ -10,6 +10,11 @@ A cross-platform SQL Server query tool for developers and analysts, built with C
 - **Run Query (Ctrl+Enter):** runs only the statement under the cursor. Statements are found by the T-SQL parser, so they don't need semicolons or `GO`. The statement that will run is highlighted as you move the cursor.
 - **Selections:** if text is selected, both commands run the selection instead.
 - **Output modes:** Grid, Text (like SSMS "results to text"), CSV and TSV. Switching modes doesn't re-run the query.
+- **Export Results (Ctrl+Shift+E):** saves the loaded results as CSV, Excel (`.xlsx`), TSV, JSON or fixed-width text. The file type you choose sets the format. Right-click a grid to export just that result set.
+  - **CSV, TSV and JSON:** one file per result set (`name.csv`, `name_2.csv`, …).
+  - **Excel:** one worksheet per result set, with typed numbers and dates and a frozen header row.
+  - **Text:** all result sets in one file.
+- **Run Script to File (Shift+F5) / Run Query to File:** streams results straight from the server into the file without loading the grid. The grid row cap doesn't apply and memory use stays flat, so this is the way to extract large results.
 - **Messages pane:** shows PRINT output, errors and row counts. Double-click an error to jump to its line.
 - **Connections:** SQL Server authentication, Windows authentication (Windows only), and Microsoft Entra ID (interactive/MFA, default credential, service principal, device code).
 - **Saved passwords:** kept in the OS keychain (Windows Credential Manager, macOS Keychain, or libsecret on Linux).

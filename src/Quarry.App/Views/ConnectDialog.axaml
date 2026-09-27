@@ -33,7 +33,7 @@
         <ScrollViewer Grid.Column="1" Padding="20,14">
             <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
                 <TextBlock Classes="label" Text="Server" />
-                <TextBox Grid.Column="1" Text="{Binding Server}" Watermark="host, host\instance, host,1433 or name.database.windows.net" />
+                <TextBox Grid.Column="1" Text="{Binding Server}" PlaceholderText="host, host\instance, host,1433 or name.database.windows.net" />
 
                 <TextBlock Grid.Row="1" Classes="label" Text="Authentication" />
                 <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch"
@@ -55,7 +55,7 @@
                           IsChecked="{Binding SaveSecret}" IsVisible="{Binding ShowSecret}" IsEnabled="{Binding CanSaveSecrets}" />
 
                 <TextBlock Grid.Row="5" Classes="label" Text="Database" />
-                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Database}" Watermark="(default)" />
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Database}" PlaceholderText="(default)" />
 
                 <TextBlock Grid.Row="6" Classes="label" Text="Encrypt" />
                 <ComboBox Grid.Row="6" Grid.Column="1" Width="160" ItemsSource="{Binding EncryptModes}" SelectedItem="{Binding Encrypt}" />
@@ -68,7 +68,7 @@
                                Value="{Binding ConnectTimeout}" />
 
                 <TextBlock Grid.Row="9" Classes="label" Text="Name (optional)" />
-                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Name}" Watermark="Shown in the object explorer" />
+                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Name}" PlaceholderText="Shown in the object explorer" />
 
                 <TextBlock Grid.Row="10" Grid.Column="1" Classes="status" TextWrapping="Wrap"
                            Text="{Binding KeychainNote}" IsVisible="{Binding !CanSaveSecrets}" />

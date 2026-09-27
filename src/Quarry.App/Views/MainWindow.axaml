@@ -18,6 +18,9 @@
                 <MenuItem Header="Save _As…" Command="{Binding SaveAsCommand}" InputGesture="Ctrl+Shift+S" IsEnabled="{Binding HasDocument}" />
                 <MenuItem Header="_Close Tab" Command="{Binding CloseDocumentCommand}" CommandParameter="{x:Null}" InputGesture="Ctrl+W" IsEnabled="{Binding HasDocument}" />
                 <Separator />
+                <MenuItem Header="_Export Results…" Command="{Binding ExportResultsCommand}" InputGesture="Ctrl+Shift+E"
+                          IsEnabled="{Binding SelectedDocument.CanExport, FallbackValue=False}" />
+                <Separator />
                 <MenuItem Header="Se_ttings…" Command="{Binding ShowSettingsCommand}" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
@@ -26,6 +29,9 @@
                 <MenuItem Header="Run _Script" Command="{Binding RunScriptCommand}" InputGesture="F5" IsEnabled="{Binding HasDocument}" />
                 <MenuItem Header="Run _Query at Cursor" Command="{Binding RunQueryCommand}" InputGesture="Ctrl+Enter" IsEnabled="{Binding HasDocument}" />
                 <MenuItem Header="_Cancel" Command="{Binding CancelCommand}" InputGesture="Escape" IsEnabled="{Binding HasDocument}" />
+                <Separator />
+                <MenuItem Header="Run Script to _File…" Command="{Binding RunScriptToFileCommand}" InputGesture="Shift+F5" IsEnabled="{Binding HasDocument}" />
+                <MenuItem Header="Run Query to F_ile…" Command="{Binding RunQueryToFileCommand}" IsEnabled="{Binding HasDocument}" />
             </MenuItem>
             <MenuItem Header="_Connection">
                 <MenuItem Header="_Connect…" Command="{Binding ConnectCommand}" />
@@ -90,6 +96,14 @@
                     </StackPanel>
                 </Button>
                 <Rectangle Width="1" Margin="6,2" Fill="{DynamicResource PaneBorder}" />
+                <Button Classes="toolbar" Command="{Binding ExportResultsCommand}"
+                        IsEnabled="{Binding SelectedDocument.CanExport, FallbackValue=False}"
+                        ToolTip.Tip="Save the results to CSV, Excel, TSV, JSON or text (Ctrl+Shift+E)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.Export}" />
+                        <TextBlock Text="Export" />
+                    </StackPanel>
+                </Button>
                 <TextBlock Classes="status" Text="Output" Margin="4,0" />
                 <ComboBox Width="100" ItemsSource="{Binding OutputModes}"
                           SelectedItem="{Binding SelectedDocument.OutputMode, Mode=TwoWay}"
@@ -112,7 +126,7 @@
         <Grid ColumnDefinitions="280,4,*">
             <!-- Object explorer -->
             <DockPanel Background="{DynamicResource PaneBackground}">
-                <TextBox DockPanel.Dock="Top" Margin="6" Watermark="Filter objects"
+                <TextBox DockPanel.Dock="Top" Margin="6" PlaceholderText="Filter objects"
                          Text="{Binding Filter}" />
                 <TreeView x:Name="Explorer"
                           ItemsSource="{Binding ExplorerRoots}"

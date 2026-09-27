@@ -36,5 +36,8 @@ public interface IDialogService
 
     Task<string?> PickSaveFileAsync(string suggestedName);
 
+    /// <summary>Save dialog for result exports (CSV, TSV, TXT, JSON, XLSX); the extension picks the format.</summary>
+    Task<string?> PickExportFileAsync(string suggestedName);
+
     Task SetClipboardTextAsync(string text);
 }

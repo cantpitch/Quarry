@@ -50,6 +50,8 @@ public partial class MainWindow : Window, IDialogService
             Key.S when command => ViewModel.SaveAsync,
             Key.S when mods == (cmd | KeyModifiers.Shift) => ViewModel.SaveAsAsync,
             Key.W when command => () => ViewModel.CloseDocumentAsync(null),
+            Key.E when mods == (cmd | KeyModifiers.Shift) => ViewModel.ExportResultsAsync,
+            Key.F5 when mods == KeyModifiers.Shift => ViewModel.RunScriptToFileAsync,
             _ => null,
         };
         if (action is null && e.Key == Key.Escape && ViewModel.SelectedDocument is { IsExecuting: true })
@@ -195,6 +197,39 @@ public partial class MainWindow : Window, IDialogService
             ShowOverwritePrompt = true,
         });
         return file?.TryGetLocalPath();
+    }
+
+    private static readonly FilePickerFileType[] ExportTypes =
+    [
+        new("CSV (comma-separated)") { Patterns = ["*.csv"] },
+        new("Excel workbook") { Patterns = ["*.xlsx"] },
+        new("TSV (tab-separated)") { Patterns = ["*.tsv"] },
+        new("JSON") { Patterns = ["*.json"] },
+        new("Text (fixed width)") { Patterns = ["*.txt"] },
+    ];
+
+    /// <summary>The extension used for the last export, suggested again next time.</summary>
+    private static string _lastExportExtension = ".csv";
+
+    public async Task<string?> PickExportFileAsync(string suggestedName)
+    {
+        var suggestedType = ExportTypes.FirstOrDefault(t => t.Patterns![0].EndsWith(_lastExportExtension, StringComparison.Ordinal));
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export results",
+            SuggestedFileName = suggestedName + _lastExportExtension,
+            DefaultExtension = _lastExportExtension.TrimStart('.'),
+            FileTypeChoices = ExportTypes,
+            SuggestedFileType = suggestedType,
+            ShowOverwritePrompt = true,
+        });
+        if (file?.TryGetLocalPath() is not { } path)
+            return null;
+        // An unknown extension (e.g. typed by hand) gets the last-used format's extension.
+        if (Core.Export.ResultExporter.FormatFromPath(path) is null)
+            path += _lastExportExtension;
+        _lastExportExtension = Path.GetExtension(path).ToLowerInvariant();
+        return path;
     }
 
     public async Task SetClipboardTextAsync(string text)

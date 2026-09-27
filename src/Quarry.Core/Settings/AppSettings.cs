@@ -20,6 +20,14 @@ public sealed record AppSettings
 
     public string BatchSeparator { get; init; } = "GO";
 
+    public bool ExportIncludeHeaders { get; init; } = true;
+
+    /// <summary>Write a UTF-8 BOM to CSV/TSV/TXT exports so Excel reads them as UTF-8.</summary>
+    public bool ExportUtf8Bom { get; init; } = true;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Export.ExportOptions ExportOptions => new() { IncludeHeaders = ExportIncludeHeaders, Utf8Bom = ExportUtf8Bom };
+
     public static AppSettings Load(string? path = null)
     {
         try

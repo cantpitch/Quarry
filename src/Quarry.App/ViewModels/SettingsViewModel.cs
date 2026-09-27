@@ -17,7 +17,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         _stopOnError = s.StopOnError;
         _defaultOutputMode = s.DefaultOutputMode;
         _batchSeparator = s.BatchSeparator;
+        _exportIncludeHeaders = s.ExportIncludeHeaders;
+        _exportUtf8Bom = s.ExportUtf8Bom;
     }
+
+    [ObservableProperty]
+    private bool _exportIncludeHeaders;
+
+    [ObservableProperty]
+    private bool _exportUtf8Bom;
 
     public IReadOnlyList<OutputMode> OutputModes { get; } = Enum.GetValues<OutputMode>();
 
@@ -64,6 +72,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             StopOnError = StopOnError,
             DefaultOutputMode = DefaultOutputMode,
             BatchSeparator = separator,
+            ExportIncludeHeaders = ExportIncludeHeaders,
+            ExportUtf8Bom = ExportUtf8Bom,
         };
         try
         {

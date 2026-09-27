@@ -14,7 +14,8 @@ namespace Quarry.App.Views;
 /// <summary>Builds a read-only DataGrid for a result set, with typed sorting and TSV copy.</summary>
 public static class ResultGridFactory
 {
-    public static DataGrid Create(ResultSetViewModel rs)
+    /// <param name="export">Exports just this result set (shows a save dialog).</param>
+    public static DataGrid Create(ResultSetViewModel rs, Func<Task>? export = null)
     {
         var grid = new DataGrid
         {
@@ -69,6 +70,11 @@ public static class ResultGridFactory
         AddItem(menu, "Copy", () => CopyAsync(grid, rs, includeHeaders: false));
         AddItem(menu, "Copy with Headers", () => CopyAsync(grid, rs, includeHeaders: true));
         AddItem(menu, "Copy Cell", () => CopyCellAsync(grid, rs));
+        if (export is not null)
+        {
+            menu.Items.Add(new Separator());
+            AddItem(menu, "Export This Result Set…", export);
+        }
         menu.Items.Add(new Separator());
         AddItem(menu, "Select All", () =>
         {

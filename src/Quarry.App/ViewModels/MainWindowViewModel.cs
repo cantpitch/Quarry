@@ -155,7 +155,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHos
 
     public async Task<QueryDocumentViewModel> NewQueryAsync(ServerConnection? server, string? database, string text = "")
     {
-        var doc = new QueryDocumentViewModel(RequestConnectionAsync);
+        var doc = new QueryDocumentViewModel(RequestConnectionAsync) { PickExportFile = _dialogs.PickExportFileAsync };
         if (text.Length > 0)
         {
             doc.Document.Text = text;
@@ -265,6 +265,15 @@ public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHos
 
     [RelayCommand]
     public void Cancel() => SelectedDocument?.Cancel();
+
+    [RelayCommand]
+    public Task RunScriptToFileAsync() => SelectedDocument?.RunToFileAsync(RunMode.Script) ?? Task.CompletedTask;
+
+    [RelayCommand]
+    public Task RunQueryToFileAsync() => SelectedDocument?.RunToFileAsync(RunMode.Query) ?? Task.CompletedTask;
+
+    [RelayCommand]
+    public Task ExportResultsAsync() => SelectedDocument?.ExportResultsAsync() ?? Task.CompletedTask;
 
     [RelayCommand]
     public async Task ShowSettingsAsync() => await _dialogs.ShowSettingsAsync();

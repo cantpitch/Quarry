@@ -11,6 +11,7 @@ using Quarry.App.Editor;
 using Quarry.App.Services;
 using Quarry.Core.Connections;
 using Quarry.Core.Execution;
+using Quarry.Core.Export;
 using Quarry.Core.Results;
 using Quarry.Parsing;
 
@@ -64,6 +65,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         };
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _elapsedTimer.Tick += (_, _) => ElapsedText = FormatElapsed(_stopwatch.Elapsed);
+        Results.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanExport));
     }
 
     public TextDocument Document { get; } = new();
@@ -240,10 +242,29 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
 
     public async Task RunAsync(RunMode mode)
     {
-        if (IsExecuting || Editor is null)
+        if (IsExecuting || Editor is null || GetUnits(mode) is not { } units || !await EnsureServerAsync())
             return;
+        await ExecuteAsync(Server!, units, exportPath: null);
+    }
 
-        var model = Editor.GetModel();
+    /// <summary>
+    /// Runs the script or query and streams every result set straight to a file instead of the grid.
+    /// No row limit applies and rows are never held in memory.
+    /// </summary>
+    public async Task RunToFileAsync(RunMode mode, string? path = null)
+    {
+        if (IsExecuting || Editor is null || GetUnits(mode) is not { } units)
+            return;
+        path ??= await PickExportPathAsync();
+        if (path is null || !await EnsureServerAsync())
+            return;
+        await ExecuteAsync(Server!, units, path);
+    }
+
+    /// <summary>What Run Script / Run Query would send, or null (with a status message) when nothing.</summary>
+    private IReadOnlyList<ExecutionUnit>? GetUnits(RunMode mode)
+    {
+        var model = Editor!.GetModel();
         var options = new AnalyzerOptions { BatchSeparator = AppServices.Settings.BatchSeparator };
         var selection = Editor.Selection;
         IReadOnlyList<ExecutionUnit> units;
@@ -254,24 +275,25 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         else
             units = ExecutionPlanner.ForQuery(model, Editor.CaretOffset) is { } unit ? [unit] : [];
 
-        if (units.Count == 0)
-        {
-            StatusText = mode == RunMode.Query ? "No statement at the cursor." : "Nothing to run.";
-            return;
-        }
-
-        if (Server is null)
-        {
-            var server = await _requestConnection();
-            if (server is null)
-                return;
-            await SetServerAsync(server, null);
-        }
-
-        await ExecuteAsync(Server!, units);
+        if (units.Count > 0)
+            return units;
+        StatusText = mode == RunMode.Query ? "No statement at the cursor." : "Nothing to run.";
+        return null;
     }
 
-    private async Task ExecuteAsync(ServerConnection server, IReadOnlyList<ExecutionUnit> units)
+    private async Task<bool> EnsureServerAsync()
+    {
+        if (Server is not null)
+            return true;
+        var server = await _requestConnection();
+        if (server is null)
+            return false;
+        await SetServerAsync(server, null);
+        return true;
+    }
+
+    /// <param name="exportPath">When set, result sets are streamed to this file instead of the grid.</param>
+    private async Task ExecuteAsync(ServerConnection server, IReadOnlyList<ExecutionUnit> units, string? exportPath)
     {
         Results.Clear();
         Messages.Clear();
@@ -280,7 +302,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         HasOutput = true;
         SelectedOutputTab = 0;
         IsExecuting = true;
-        StatusText = "Executing…";
+        StatusText = exportPath is null ? "Executing…" : $"Executing to {Path.GetFileName(exportPath)}…";
         _cts = new CancellationTokenSource();
         _stopwatch.Restart();
         _elapsedTimer.Start();
@@ -288,17 +310,30 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         var options = new ExecutionOptions
         {
             CommandTimeoutSeconds = settings.CommandTimeoutSeconds,
-            MaxRowsPerResultSet = settings.MaxRowsPerResultSet,
+            MaxRowsPerResultSet = exportPath is null ? settings.MaxRowsPerResultSet : 0,
             StopOnError = settings.StopOnError,
         };
 
         ExecutionSummary? summary = null;
+        ExportingSink? exportSink = null;
+        IResultExporter? exporter = null;
         try
         {
             var connection = await EnsureConnectionAsync(server, _cts.Token);
-            var sink = new UiExecutionSink(this);
-            summary = await Task.Run(() => QueryExecutor.ExecuteAsync(connection, units, sink, options, _cts.Token));
-            await sink.FlushAsync();
+            var uiSink = new UiExecutionSink(this);
+            IExecutionSink sink = uiSink;
+            if (exportPath is not null)
+            {
+                exporter = ResultExporter.Create(ResultExporter.FormatFromPath(exportPath) ?? ExportFormat.Csv, exportPath, settings.ExportOptions);
+                sink = exportSink = new ExportingSink(exporter, uiSink);
+            }
+            summary = await Task.Run(async () =>
+            {
+                var result = await QueryExecutor.ExecuteAsync(connection, units, sink, options, _cts.Token);
+                exporter?.Complete();
+                return result;
+            });
+            await uiSink.FlushAsync();
 
             if (connection.State == System.Data.ConnectionState.Open)
             {
@@ -326,6 +361,14 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
         }
         finally
         {
+            try
+            {
+                exporter?.Dispose(); // closes files even after an error or cancel
+            }
+            catch (Exception ex)
+            {
+                AddMessage(new ExecutionMessage(MessageKind.Error, $"Could not finish writing the file: {ex.Message}"));
+            }
             _stopwatch.Stop();
             _elapsedTimer.Stop();
             ElapsedText = FormatElapsed(_stopwatch.Elapsed);
@@ -334,7 +377,7 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
             _cts = null;
         }
 
-        long rows = Results.Sum(r => (long)r.Model.Rows.Count);
+        long rows = exportSink?.RowCount ?? Results.Sum(r => (long)r.Model.Rows.Count);
         RowCountText = rows == 1 ? "1 row" : string.Create(CultureInfo.CurrentCulture, $"{rows:N0} rows");
         StatusText = summary switch
         {
@@ -342,12 +385,87 @@ public sealed partial class QueryDocumentViewModel : ObservableObject, ICompleti
             { Succeeded: true } => "Query completed successfully.",
             _ => "Query completed with errors.",
         };
+
+        if (exporter is not null && exportSink is not null)
+        {
+            bool partial = summary is not { Cancelled: false }; // cancelled or failed part-way
+            AddMessage(new ExecutionMessage(MessageKind.Status, DescribeExport(exportSink.ResultSetCount, rows, exporter.Files, partial)));
+            if (exporter.Files.Count > 0)
+                StatusText += $" Results written to {Path.GetFileName(exporter.Files[0])}{(exporter.Files.Count > 1 ? $" (+{exporter.Files.Count - 1})" : "")}.";
+        }
+
         AddMessage(new ExecutionMessage(MessageKind.Status,
             string.Create(CultureInfo.CurrentCulture, $"Completion time: {DateTimeOffset.Now:O}")));
 
         if (Results.Count == 0)
             SelectedOutputTab = 1;
         await RenderTextOutputAsync();
+    }
+
+    private static string DescribeExport(int resultSets, long rows, IReadOnlyList<string> files, bool partial)
+    {
+        if (files.Count == 0)
+            return "No result sets were returned, so no file was written.";
+        var sb = new StringBuilder();
+        sb.Append(CultureInfo.CurrentCulture, $"{(partial ? "Partial output: wrote" : "Wrote")} {rows:N0} row{(rows == 1 ? "" : "s")} ");
+        sb.Append(CultureInfo.CurrentCulture, $"from {resultSets} result set{(resultSets == 1 ? "" : "s")} to:");
+        foreach (var file in files)
+            sb.Append('\n').Append(file);
+        return sb.ToString();
+    }
+
+    // ---- Export ----
+
+    /// <summary>Supplied by the window: shows a save dialog for an export file.</summary>
+    public Func<string, Task<string?>>? PickExportFile { get; set; }
+
+    private Task<string?> PickExportPathAsync()
+        => PickExportFile?.Invoke(Path.GetFileNameWithoutExtension(FileName)) ?? Task.FromResult<string?>(null);
+
+    public bool CanExport => Results.Count > 0 && !IsExecuting && !IsExporting;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanExport))]
+    private bool _isExporting;
+
+    partial void OnIsExecutingChanged(bool value) => OnPropertyChanged(nameof(CanExport));
+
+    /// <summary>Exports all loaded result sets (or just <paramref name="only"/>) to a file.</summary>
+    public async Task ExportResultsAsync(string? path = null, ResultSetViewModel? only = null)
+    {
+        if (!CanExport)
+            return;
+        path ??= await PickExportPathAsync();
+        if (path is null)
+            return;
+
+        var sets = only is not null ? [only.Model] : Results.Select(r => r.Model).ToList();
+        var format = ResultExporter.FormatFromPath(path) ?? ExportFormat.Csv;
+        IsExporting = true;
+        StatusText = $"Exporting to {Path.GetFileName(path)}…";
+        try
+        {
+            var options = AppServices.Settings.ExportOptions;
+            var files = await Task.Run(() => ResultExporter.Export(sets, format, path, options));
+            long rows = sets.Sum(s => (long)s.Rows.Count);
+            AddMessage(new ExecutionMessage(MessageKind.Status, DescribeExport(sets.Count, rows, files, partial: false)));
+            if (sets.Any(s => s.IsTruncated))
+            {
+                AddMessage(new ExecutionMessage(MessageKind.Error,
+                    "Some result sets were cut off by the row limit, so the file is incomplete. Use Run Script to File for the full results."));
+            }
+            StatusText = $"Exported to {Path.GetFileName(files.FirstOrDefault() ?? path)}{(files.Count > 1 ? $" (+{files.Count - 1})" : "")}.";
+        }
+        catch (Exception ex)
+        {
+            AddMessage(new ExecutionMessage(MessageKind.Error, $"Export failed: {ex.Message}"));
+            StatusText = "Export failed.";
+            SelectedOutputTab = 1;
+        }
+        finally
+        {
+            IsExporting = false;
+        }
     }
 
     internal void AddMessage(ExecutionMessage message)

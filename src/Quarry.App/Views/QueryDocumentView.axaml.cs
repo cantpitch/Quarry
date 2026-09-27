@@ -135,7 +135,7 @@ public partial class QueryDocumentView : UserControl, IEditorAccessor
 
     private void AddGrid(ResultSetViewModel rs)
     {
-        var grid = ResultGridFactory.Create(rs);
+        var grid = ResultGridFactory.Create(rs, () => _vm?.ExportResultsAsync(only: rs) ?? Task.CompletedTask);
         _grids.Add((rs, grid));
         GridStack.Children.Add(grid);
         LayoutGrids();
@@ -192,6 +192,6 @@ public partial class QueryDocumentView : UserControl, IEditorAccessor
             Editor.Document.Insert(Editor.CaretOffset, text);
     }
 
-    public new void Focus()
+    public void Focus()
         => Dispatcher.UIThread.Post(() => Editor.TextArea.Focus(), DispatcherPriority.Input);
 }

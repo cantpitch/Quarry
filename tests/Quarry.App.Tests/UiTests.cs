@@ -54,7 +54,9 @@ public class UiTests
     {
         Directory.CreateDirectory(SnapshotDir);
         Dispatcher.UIThread.RunJobs();
+#pragma warning disable CS0618 // the replacement overload needs BitmapEncoderOptions, which has no public constructor
         window.CaptureRenderedFrame()?.Save(Path.Combine(SnapshotDir, name + ".png"));
+#pragma warning restore CS0618
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 20000)
@@ -162,6 +164,59 @@ public class UiTests
         Snapshot(window, "06-explorer");
 
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task ExportResults_AndRunToFile()
+    {
+        if (TestServer() is not { } server)
+            return; // needs QUARRY_TEST_CONNECTION
+        await server.ConnectAsync();
+        string dir = Path.Combine(Path.GetTempPath(), $"quarry-ui-export-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var window = new MainWindow { Width = 1300, Height = 820 };
+            window.Show();
+            var vm = window.ViewModel;
+            vm.Servers.Add(server);
+            var doc = await vm.NewQueryAsync(server, "master");
+            var editor = EditorOf(window);
+            editor.Document.Text = "SELECT TOP (10) name, database_id FROM sys.databases\nSELECT 'x' AS only_one";
+            Assert.False(doc.CanExport);
+
+            await vm.RunScriptAsync();
+            await WaitUntilAsync(() => !doc.IsExecuting);
+            Assert.True(doc.CanExport);
+
+            // Export everything that is loaded: one CSV per result set.
+            string csv = Path.Combine(dir, "loaded.csv");
+            await doc.ExportResultsAsync(csv);
+            Assert.True(File.Exists(csv));
+            Assert.Equal(["only_one", "x"], File.ReadAllLines(Path.Combine(dir, "loaded_2.csv")));
+            Assert.Contains(doc.Messages, m => m.Text.StartsWith("Wrote") && m.Text.Contains("loaded_2.csv"));
+
+            // Export a single result set to Excel.
+            string xlsx = Path.Combine(dir, "second.xlsx");
+            await doc.ExportResultsAsync(xlsx, only: doc.Results[1]);
+            Assert.True(new FileInfo(xlsx).Length > 0);
+
+            // Run to file: nothing goes to the grid, messages still show.
+            string json = Path.Combine(dir, "streamed.json");
+            await doc.RunToFileAsync(RunMode.Script, json);
+            await WaitUntilAsync(() => !doc.IsExecuting);
+            Assert.Empty(doc.Results);
+            Assert.False(doc.CanExport);
+            Assert.True(File.Exists(Path.Combine(dir, "streamed_2.json")));
+            Assert.Contains("Results written to streamed.json (+1)", doc.StatusText);
+            Assert.Equal(1, doc.SelectedOutputTab);
+            Snapshot(window, "08-run-to-file");
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 
     [AvaloniaFact]
