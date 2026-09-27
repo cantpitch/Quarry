@@ -4,44 +4,89 @@
         x:Class="Quarry.App.Views.SettingsDialog"
         x:DataType="vm:SettingsViewModel"
         Title="Settings"
-        Width="520" SizeToContent="Height"
+        Width="820" Height="640" MinWidth="640" MinHeight="480"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False" CanResize="False">
-    <StackPanel Margin="20" Spacing="16">
-        <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
-            <TextBlock Classes="label" Text="Editor font size" />
-            <NumericUpDown Grid.Column="1" Minimum="8" Maximum="40" Increment="1" FormatString="0" Value="{Binding FontSize}" />
-
-            <TextBlock Grid.Row="1" Classes="label" Text="Max rows per result set" />
-            <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100000000" Increment="10000" FormatString="0"
-                           Value="{Binding MaxRows}" ToolTip.Tip="0 keeps every row" />
-
-            <TextBlock Grid.Row="2" Classes="label" Text="Command timeout (seconds)" />
-            <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="86400" Increment="30" FormatString="0"
-                           Value="{Binding CommandTimeout}" ToolTip.Tip="0 waits indefinitely" />
-
-            <TextBlock Grid.Row="3" Classes="label" Text="Default output" />
-            <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding OutputModes}" SelectedItem="{Binding DefaultOutputMode}" />
-
-            <TextBlock Grid.Row="4" Classes="label" Text="Batch separator" />
-            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding BatchSeparator}" Width="120" HorizontalAlignment="Left" />
-
-            <CheckBox Grid.Row="5" Grid.Column="1" Content="Stop running batches after an error" IsChecked="{Binding StopOnError}" />
-        </Grid>
-        <StackPanel Spacing="8">
-            <TextBlock Text="History" FontWeight="SemiBold" />
-            <CheckBox Content="Save executed queries in the History panel" IsChecked="{Binding SaveQueryHistory}" />
+        ShowInTaskbar="False">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+            <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />
+                <Button Content="Save" Command="{Binding SaveCommand}" IsDefault="True" Classes="accent" />
+            </StackPanel>
         </StackPanel>
-        <StackPanel Spacing="8">
-            <TextBlock Text="Export" FontWeight="SemiBold" />
-            <CheckBox Content="Include column headers" IsChecked="{Binding ExportIncludeHeaders}" />
-            <CheckBox Content="Write a UTF-8 byte order mark (lets Excel open CSV files with accents correctly)"
-                      IsChecked="{Binding ExportUtf8Bom}" />
-        </StackPanel>
-        <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />
-            <Button Content="Save" Command="{Binding SaveCommand}" IsDefault="True" Classes="accent" />
-        </StackPanel>
-    </StackPanel>
+
+        <TabControl>
+            <TabItem Header="General">
+                <ScrollViewer>
+                    <StackPanel Margin="4,12" Spacing="16">
+                        <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                            <TextBlock Classes="label" Text="Editor font size" />
+                            <NumericUpDown Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="8" Maximum="40" Increment="1" FormatString="0" Value="{Binding FontSize}" />
+
+                            <TextBlock Grid.Row="1" Classes="label" Text="Max rows per result set" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="0" Maximum="100000000" Increment="10000" FormatString="0"
+                                           Value="{Binding MaxRows}" ToolTip.Tip="0 keeps every row" />
+
+                            <TextBlock Grid.Row="2" Classes="label" Text="Command timeout (seconds)" />
+                            <NumericUpDown Grid.Row="2" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="0" Maximum="86400" Increment="30" FormatString="0"
+                                           Value="{Binding CommandTimeout}" ToolTip.Tip="0 waits indefinitely" />
+
+                            <TextBlock Grid.Row="3" Classes="label" Text="Default output" />
+                            <ComboBox Grid.Row="3" Grid.Column="1" Width="160" ItemsSource="{Binding OutputModes}" SelectedItem="{Binding DefaultOutputMode}" />
+
+                            <TextBlock Grid.Row="4" Classes="label" Text="Batch separator" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding BatchSeparator}" Width="120" HorizontalAlignment="Left" />
+
+                            <CheckBox Grid.Row="5" Grid.Column="1" Content="Stop running batches after an error" IsChecked="{Binding StopOnError}" />
+                        </Grid>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="History" FontWeight="SemiBold" />
+                            <CheckBox Content="Save executed queries in the History panel" IsChecked="{Binding SaveQueryHistory}" />
+                        </StackPanel>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Export" FontWeight="SemiBold" />
+                            <CheckBox Content="Include column headers" IsChecked="{Binding ExportIncludeHeaders}" />
+                            <CheckBox Content="Write a UTF-8 byte order mark (lets Excel open CSV files with accents correctly)"
+                                      IsChecked="{Binding ExportUtf8Bom}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Formatting">
+                <DockPanel Margin="4,12,4,0">
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                        <TextBlock Classes="label" Text="Keywords" />
+                        <ComboBox Grid.Column="1" MinWidth="360" ItemsSource="{Binding KeywordCases}" SelectedItem="{Binding SelectedKeywordCase}" />
+
+                        <TextBlock Grid.Row="1" Classes="label" Text="Clause layout" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ClauseLayouts}" SelectedItem="{Binding SelectedClauseLayout}" />
+
+                        <TextBlock Grid.Row="2" Classes="label" Text="SELECT and SET lists" />
+                        <ComboBox Grid.Row="2" Grid.Column="1" MinWidth="360" ItemsSource="{Binding ListLayouts}" SelectedItem="{Binding SelectedListLayout}" />
+
+                        <TextBlock Grid.Row="3" Classes="label" Text="Commas" />
+                        <ComboBox Grid.Row="3" Grid.Column="1" MinWidth="360" ItemsSource="{Binding CommaPlacements}" SelectedItem="{Binding SelectedCommaPlacement}" />
+
+                        <TextBlock Grid.Row="4" Classes="label" Text="Extra JOIN … ON conditions" />
+                        <ComboBox Grid.Row="4" Grid.Column="1" MinWidth="360" ItemsSource="{Binding JoinConditionLayouts}" SelectedItem="{Binding SelectedJoinConditions}" />
+
+                        <CheckBox Grid.Row="5" Grid.Column="1" Content="Start each WHERE / HAVING AND or OR on a new line"
+                                  IsChecked="{Binding WhereConditionsOnNewLines}" />
+
+                        <TextBlock Grid.Row="6" Classes="label" Text="Indent size" />
+                        <NumericUpDown Grid.Row="6" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="1" Maximum="16" Increment="1" FormatString="0"
+                                       Value="{Binding IndentSize}" />
+                    </Grid>
+                    <TextBlock DockPanel.Dock="Top" Text="Preview" FontWeight="SemiBold" Margin="0,16,0,6" />
+                    <Border BorderBrush="{DynamicResource PaneBorder}" BorderThickness="1" Background="{DynamicResource PaneBackground}" Padding="10,8">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto">
+                            <SelectableTextBlock Text="{Binding Preview}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                        </ScrollViewer>
+                    </Border>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Window>

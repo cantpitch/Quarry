@@ -296,6 +296,68 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public async Task FormatSql_WholeDocumentSelectionAndUndo()
+    {
+        var window = new MainWindow { Width = 1200, Height = 760 };
+        window.Show();
+        var vm = window.ViewModel;
+        var doc = await vm.NewQueryAsync(null, null);
+        var editor = EditorOf(window);
+
+        const string messy = "select a.* from Table1 a join Table2 b on a.Id = b.Id where a.Something = 5\ngo\nselect x from y";
+        editor.Document.Text = messy;
+        editor.CaretOffset = messy.IndexOf("Something", StringComparison.Ordinal);
+
+        await vm.FormatAsync();
+        Assert.Equal(
+            "SELECT a.*\nFROM   Table1 a\nJOIN   Table2 b ON a.Id = b.Id\nWHERE  a.Something = 5\nGO\nSELECT x\nFROM   y",
+            editor.Document.Text);
+        Assert.Equal("Formatted.", doc.StatusText);
+        // The caret stays on the same code.
+        Assert.StartsWith("Something", editor.Document.Text[editor.CaretOffset..]);
+        Snapshot(window, "10-formatted");
+
+        // One undo restores the original.
+        editor.Undo();
+        Assert.Equal(messy, editor.Document.Text);
+
+        // Only the selection is formatted.
+        int start = messy.IndexOf("select x", StringComparison.Ordinal);
+        editor.Select(start, messy.Length - start);
+        await vm.FormatAsync();
+        Assert.Equal(messy[..start] + "SELECT x\nFROM   y", editor.Document.Text);
+
+        // A batch with a syntax error is left alone and reported.
+        editor.Document.Text = "select from where\ngo\nselect 1";
+        editor.SelectionLength = 0;
+        await vm.FormatAsync();
+        Assert.Equal("select from where\nGO\nSELECT 1", editor.Document.Text);
+        Assert.StartsWith("Formatted, except: Batch 1: syntax error", doc.StatusText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task SettingsDialog_FormattingPreviewFollowsOptions()
+    {
+        var owner = new Window { Width = 900, Height = 700 };
+        owner.Show();
+        var vm = new SettingsViewModel();
+        var dialog = new SettingsDialog { DataContext = vm };
+        _ = dialog.ShowDialog(owner);
+        dialog.FindDescendantOfType<TabControl>()!.SelectedIndex = 1;
+        Dispatcher.UIThread.RunJobs();
+        Assert.StartsWith("SELECT    a.Id,\n", vm.Preview.Replace("\r\n", "\n"));
+        Snapshot(dialog, "11-settings-formatting");
+
+        vm.SelectedClauseLayout = vm.ClauseLayouts.First(c => c.Value == Parsing.Formatting.ClauseLayout.Indented);
+        vm.SelectedKeywordCase = vm.KeywordCases.First(c => c.Value == Parsing.Formatting.KeywordCase.Lower);
+        Assert.StartsWith("select\n    a.Id,\n", vm.Preview.Replace("\r\n", "\n"));
+        dialog.Close();
+        owner.Close();
+        await Task.CompletedTask;
+    }
+
+    [AvaloniaFact]
     public async Task ConnectDialog_Renders()
     {
         var owner = new Window { Width = 900, Height = 700 };

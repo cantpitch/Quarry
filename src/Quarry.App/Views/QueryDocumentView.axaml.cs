@@ -184,6 +184,19 @@ public partial class QueryDocumentView : UserControl, IEditorAccessor
         Focus();
     }
 
+    public void SetCaret(int offset)
+    {
+        Editor.SelectionLength = 0;
+        Editor.CaretOffset = Math.Clamp(offset, 0, Editor.Document.TextLength);
+        Editor.TextArea.Caret.BringCaretToView();
+    }
+
+    public void Select(int start, int length)
+    {
+        Editor.CaretOffset = start + length;
+        Editor.Select(start, length);
+    }
+
     public void InsertAtCaret(string text)
     {
         if (Editor.SelectionLength > 0)

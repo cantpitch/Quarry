@@ -11,6 +11,10 @@ A cross-platform SQL Server query tool for developers and analysts, built with C
 - **Run Script (F5 / Ctrl+E):** runs the whole file, split on `GO` lines. `GO n` repeats the batch n times, and a `GO` inside a string or comment is ignored.
 - **Run Query (Ctrl+Enter):** runs only the statement under the cursor. Statements are found by the T-SQL parser, so they don't need semicolons or `GO`. The statement that will run is highlighted as you move the cursor.
 - **Selections:** if text is selected, both commands run the selection instead.
+- **Format SQL (Ctrl+Shift+F):** formats the selection, or the whole script. It's one undo step, and the cursor stays on the same code.
+  - **Default style:** in each query block, clause bodies line up one space after the longest clause keyword (so `LEFT JOIN` sets the column). Each column is on its own line, AND/OR start new lines, and subqueries are laid out in place.
+  - **Settings > Formatting:** keyword case, aligned, compact or indented clauses, list layout, comma placement, JOIN … ON conditions and indent size, with a live preview.
+  - **Safety:** only whitespace and keyword case ever change. Every batch is re-parsed and its tokens compared after formatting. A batch with a syntax error, or one that can't be formatted safely, is left exactly as it was.
 - **Output modes:** Grid, Text (like SSMS "results to text"), CSV and TSV. Switching modes doesn't re-run the query.
 - **Export Results (Ctrl+Shift+E):** saves the loaded results as CSV, Excel (`.xlsx`), TSV, JSON or fixed-width text. The file type you choose sets the format. Right-click a grid to export just that result set.
   - **CSV, TSV and JSON:** one file per result set (`name.csv`, `name_2.csv`, …).

@@ -30,6 +30,8 @@
                 <MenuItem Header="Run _Query at Cursor" Command="{Binding RunQueryCommand}" InputGesture="Ctrl+Enter" IsEnabled="{Binding HasDocument}" />
                 <MenuItem Header="_Cancel" Command="{Binding CancelCommand}" InputGesture="Escape" IsEnabled="{Binding HasDocument}" />
                 <Separator />
+                <MenuItem Header="F_ormat SQL" Command="{Binding FormatCommand}" InputGesture="Ctrl+Shift+F" IsEnabled="{Binding HasDocument}" />
+                <Separator />
                 <MenuItem Header="Run Script to _File…" Command="{Binding RunScriptToFileCommand}" InputGesture="Shift+F5" IsEnabled="{Binding HasDocument}" />
                 <MenuItem Header="Run Query to F_ile…" Command="{Binding RunQueryToFileCommand}" IsEnabled="{Binding HasDocument}" />
             </MenuItem>
@@ -55,7 +57,7 @@
                     </StackPanel>
                 </Button>
                 <Rectangle Width="1" Margin="6,2" Fill="{DynamicResource PaneBorder}" />
-                <ComboBox x:Name="ServerPicker" Width="240" PlaceholderText="Not connected"
+                <ComboBox x:Name="ServerPicker" Width="200" PlaceholderText="Not connected"
                           ItemsSource="{Binding Servers}"
                           SelectedItem="{Binding SelectedDocument.Server, Mode=OneWay}"
                           IsEnabled="{Binding HasDocument}"
@@ -67,7 +69,7 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <ComboBox Width="200" PlaceholderText="Database"
+                <ComboBox Width="170" PlaceholderText="Database"
                           ItemsSource="{Binding SelectedDocument.Databases}"
                           SelectedItem="{Binding SelectedDocument.Database, Mode=TwoWay}"
                           IsEnabled="{Binding HasDocument}"
@@ -93,6 +95,13 @@
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <PathIcon Data="{StaticResource Geo.Stop}" Foreground="#C42B1C" />
                         <TextBlock Text="Cancel" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="toolbar" Command="{Binding FormatCommand}" IsEnabled="{Binding HasDocument}"
+                        ToolTip.Tip="Format the selection, or the whole script (Ctrl+Shift+F)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Geo.Format}" />
+                        <TextBlock Text="Format" />
                     </StackPanel>
                 </Button>
                 <Rectangle Width="1" Margin="6,2" Fill="{DynamicResource PaneBorder}" />

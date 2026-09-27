@@ -279,6 +279,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHos
     public void Cancel() => SelectedDocument?.Cancel();
 
     [RelayCommand]
+    public Task FormatAsync() => SelectedDocument?.FormatAsync() ?? Task.CompletedTask;
+
+    [RelayCommand]
     public Task RunScriptToFileAsync() => SelectedDocument?.RunToFileAsync(RunMode.Script) ?? Task.CompletedTask;
 
     [RelayCommand]
