@@ -17,9 +17,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         _stopOnError = s.StopOnError;
         _defaultOutputMode = s.DefaultOutputMode;
         _batchSeparator = s.BatchSeparator;
+        _saveQueryHistory = s.SaveQueryHistory;
         _exportIncludeHeaders = s.ExportIncludeHeaders;
         _exportUtf8Bom = s.ExportUtf8Bom;
     }
+
+    [ObservableProperty]
+    private bool _saveQueryHistory;
 
     [ObservableProperty]
     private bool _exportIncludeHeaders;
@@ -72,6 +76,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             StopOnError = StopOnError,
             DefaultOutputMode = DefaultOutputMode,
             BatchSeparator = separator,
+            SaveQueryHistory = SaveQueryHistory,
             ExportIncludeHeaders = ExportIncludeHeaders,
             ExportUtf8Bom = ExportUtf8Bom,
         };

@@ -20,6 +20,9 @@ public sealed record AppSettings
 
     public string BatchSeparator { get; init; } = "GO";
 
+    /// <summary>Record executed queries in the History panel.</summary>
+    public bool SaveQueryHistory { get; init; } = true;
+
     public bool ExportIncludeHeaders { get; init; } = true;
 
     /// <summary>Write a UTF-8 BOM to CSV/TSV/TXT exports so Excel reads them as UTF-8.</summary>

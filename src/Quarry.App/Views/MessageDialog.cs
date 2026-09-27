@@ -19,6 +19,23 @@ public static class MessageDialog
         await dialog.ShowDialog(owner);
     }
 
+    public static async Task<bool> ConfirmAsync(Window owner, string title, string message)
+    {
+        var dialog = CreateWindow(title);
+        bool confirmed = false;
+        var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 80 };
+        ok.Click += (_, _) =>
+        {
+            confirmed = true;
+            dialog.Close();
+        };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 80 };
+        cancel.Click += (_, _) => dialog.Close();
+        dialog.Content = Layout(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap }, cancel, ok);
+        await dialog.ShowDialog(owner);
+        return confirmed;
+    }
+
     public static async Task<SaveChoice> AskSaveAsync(Window owner, string documentName)
     {
         var dialog = CreateWindow("Quarry");

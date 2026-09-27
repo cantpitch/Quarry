@@ -30,6 +30,9 @@ public interface IDialogService
 
     Task ShowErrorAsync(string title, string message);
 
+    /// <summary>OK/Cancel confirmation; true when confirmed.</summary>
+    Task<bool> ConfirmAsync(string title, string message);
+
     Task<bool> ShowSettingsAsync();
 
     Task<string?> PickOpenFileAsync();

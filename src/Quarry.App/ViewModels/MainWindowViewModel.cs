@@ -3,18 +3,26 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Quarry.App.Services;
 using Quarry.Core.Connections;
+using Quarry.Core.History;
 using Quarry.Core.Results;
 
 namespace Quarry.App.ViewModels;
 
-public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHost
+public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHost, IHistoryHost
 {
     private readonly IDialogService _dialogs;
 
-    public MainWindowViewModel(IDialogService dialogs)
+    public MainWindowViewModel(IDialogService dialogs, QueryHistoryStore? historyStore = null)
     {
         _dialogs = dialogs;
+        History = new HistoryViewModel(historyStore ?? new QueryHistoryStore(), this);
     }
+
+    public HistoryViewModel History { get; }
+
+    /// <summary>0 = Object Explorer, 1 = History.</summary>
+    [ObservableProperty]
+    private int _selectedSidePanel;
 
     /// <summary>Connected servers; the roots of the object explorer.</summary>
     public ObservableCollection<ExplorerNode> ExplorerRoots { get; } = [];
@@ -155,7 +163,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHos
 
     public async Task<QueryDocumentViewModel> NewQueryAsync(ServerConnection? server, string? database, string text = "")
     {
-        var doc = new QueryDocumentViewModel(RequestConnectionAsync) { PickExportFile = _dialogs.PickExportFileAsync };
+        var doc = new QueryDocumentViewModel(RequestConnectionAsync)
+        {
+            PickExportFile = _dialogs.PickExportFileAsync,
+            ExecutionRecorded = History.RecordAsync,
+        };
         if (text.Length > 0)
         {
             doc.Document.Text = text;
@@ -302,4 +314,27 @@ public sealed partial class MainWindowViewModel : ObservableObject, IExplorerHos
     }
 
     public Task ShowErrorAsync(string title, string message) => _dialogs.ShowErrorAsync(title, message);
+
+    // ---- IHistoryHost ----
+
+    /// <summary>
+    /// Opens a history entry in a new tab. It reuses a connected server with the same server name;
+    /// otherwise the tab opens unconnected (running it then asks for a connection).
+    /// </summary>
+    public async Task OpenHistoryAsync(QueryHistoryEntry entry, bool run)
+    {
+        var server = Servers.FirstOrDefault(s => s.Profile.Server.Equals(entry.Server, StringComparison.OrdinalIgnoreCase));
+        var doc = await NewQueryAsync(server, server is null ? null : entry.Database, entry.Text);
+        if (server is null)
+            doc.StatusText = $"Not connected to {entry.ServerDisplayName}. Connect to run this query.";
+        if (entry.TextTruncated)
+            doc.StatusText = "This history entry was too long to store in full; only the first part is shown.";
+        if (run && !entry.TextTruncated)
+        {
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Loaded);
+            await doc.RunAsync(RunMode.Script);
+        }
+    }
+
+    public Task<bool> ConfirmAsync(string title, string message) => _dialogs.ConfirmAsync(title, message);
 }
