@@ -1,5 +1,7 @@
 # Quarry
 
+[![CI](https://github.com/cantpitch/Quarry/actions/workflows/ci.yml/badge.svg)](https://github.com/cantpitch/Quarry/actions/workflows/ci.yml)
+
 A cross-platform SQL Server query tool for developers and analysts, built with C# and Avalonia. It runs on Windows, macOS and Linux.
 
 ## Features
