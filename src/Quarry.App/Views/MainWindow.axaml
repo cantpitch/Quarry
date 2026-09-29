@@ -6,6 +6,7 @@
         x:Class="Quarry.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Quarry"
+        Icon="/Assets/quarry.ico"
         Width="1400" Height="880" MinWidth="720" MinHeight="420"
         WindowStartupLocation="CenterScreen">
 
