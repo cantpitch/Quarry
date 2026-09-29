@@ -32,17 +32,11 @@
         <Setter Property="MinHeight" Value="24" />
     </Style>
 
-    <Style Selector="DataGrid.results">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="RowHeight" Value="22" />
-    </Style>
     <Style Selector="DataGrid.results DataGridCell">
-        <Setter Property="FontSize" Value="12" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="MinHeight" Value="22" />
     </Style>
     <Style Selector="DataGrid.results DataGridColumnHeader">
-        <Setter Property="FontSize" Value="12" />
         <Setter Property="MinHeight" Value="26" />
         <Setter Property="Padding" Value="6,0" />
     </Style>

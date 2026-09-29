@@ -20,25 +20,35 @@
             <TabItem Header="General">
                 <ScrollViewer>
                     <StackPanel Margin="4,12" Spacing="16">
-                        <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
-                            <TextBlock Classes="label" Text="Editor font size" />
-                            <NumericUpDown Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="8" Maximum="40" Increment="1" FormatString="0" Value="{Binding FontSize}" />
+                        <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                            <TextBlock Classes="label" Text="Editor font" />
+                            <ComboBox Grid.Column="1" Width="280" ItemsSource="{Binding EditorFonts}" SelectedItem="{Binding SelectedEditorFont}"
+                                      ToolTip.Tip="Monospaced fonts only. Also used for text, CSV and TSV output." />
 
-                            <TextBlock Grid.Row="1" Classes="label" Text="Max rows per result set" />
-                            <NumericUpDown Grid.Row="1" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="0" Maximum="100000000" Increment="10000" FormatString="0"
+                            <TextBlock Grid.Row="1" Classes="label" Text="Editor font size" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="8" Maximum="40" Increment="1" FormatString="0" Value="{Binding FontSize}" />
+
+                            <TextBlock Grid.Row="2" Classes="label" Text="Grid font" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" Width="280" ItemsSource="{Binding GridFonts}" SelectedItem="{Binding SelectedGridFont}" />
+
+                            <TextBlock Grid.Row="3" Classes="label" Text="Grid font size" />
+                            <NumericUpDown Grid.Row="3" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="8" Maximum="40" Increment="1" FormatString="0" Value="{Binding GridFontSize}" />
+
+                            <TextBlock Grid.Row="4" Classes="label" Text="Max rows per result set" />
+                            <NumericUpDown Grid.Row="4" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="0" Maximum="100000000" Increment="10000" FormatString="0"
                                            Value="{Binding MaxRows}" ToolTip.Tip="0 keeps every row" />
 
-                            <TextBlock Grid.Row="2" Classes="label" Text="Command timeout (seconds)" />
-                            <NumericUpDown Grid.Row="2" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="0" Maximum="86400" Increment="30" FormatString="0"
+                            <TextBlock Grid.Row="5" Classes="label" Text="Command timeout (seconds)" />
+                            <NumericUpDown Grid.Row="5" Grid.Column="1" Width="160" HorizontalAlignment="Left" Minimum="0" Maximum="86400" Increment="30" FormatString="0"
                                            Value="{Binding CommandTimeout}" ToolTip.Tip="0 waits indefinitely" />
 
-                            <TextBlock Grid.Row="3" Classes="label" Text="Default output" />
-                            <ComboBox Grid.Row="3" Grid.Column="1" Width="160" ItemsSource="{Binding OutputModes}" SelectedItem="{Binding DefaultOutputMode}" />
+                            <TextBlock Grid.Row="6" Classes="label" Text="Default output" />
+                            <ComboBox Grid.Row="6" Grid.Column="1" Width="160" ItemsSource="{Binding OutputModes}" SelectedItem="{Binding DefaultOutputMode}" />
 
-                            <TextBlock Grid.Row="4" Classes="label" Text="Batch separator" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding BatchSeparator}" Width="120" HorizontalAlignment="Left" />
+                            <TextBlock Grid.Row="7" Classes="label" Text="Batch separator" />
+                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding BatchSeparator}" Width="120" HorizontalAlignment="Left" />
 
-                            <CheckBox Grid.Row="5" Grid.Column="1" Content="Stop running batches after an error" IsChecked="{Binding StopOnError}" />
+                            <CheckBox Grid.Row="8" Grid.Column="1" Content="Stop running batches after an error" IsChecked="{Binding StopOnError}" />
                         </Grid>
                         <StackPanel Spacing="8">
                             <TextBlock Text="History" FontWeight="SemiBold" />

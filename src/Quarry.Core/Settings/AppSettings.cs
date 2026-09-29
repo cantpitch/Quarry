@@ -4,9 +4,15 @@ namespace Quarry.Core.Settings;
 
 public sealed record AppSettings
 {
-    public string EditorFontFamily { get; init; } = "Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono, monospace";
+    /// <summary>A single font family name; empty uses the built-in monospace stack. Also used for text/CSV/TSV output.</summary>
+    public string EditorFontFamily { get; init; } = "";
 
     public double EditorFontSize { get; init; } = 13;
+
+    /// <summary>A single font family name (monospace or proportional); empty uses the application font.</summary>
+    public string GridFontFamily { get; init; } = "";
+
+    public double GridFontSize { get; init; } = 12;
 
     /// <summary>0 keeps every row.</summary>
     public int MaxRowsPerResultSet { get; init; }
