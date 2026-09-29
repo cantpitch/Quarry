@@ -134,7 +134,7 @@
 
         <Grid ColumnDefinitions="280,4,*">
             <!-- Side panel: object explorer and query history -->
-            <TabControl Background="{DynamicResource PaneBackground}" Padding="0"
+            <TabControl Background="{DynamicResource ContentPaneBackground}" Padding="0"
                         SelectedIndex="{Binding SelectedSidePanel}">
             <TabItem Header="Explorer" FontSize="13">
             <DockPanel>

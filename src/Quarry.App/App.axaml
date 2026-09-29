@@ -8,6 +8,7 @@
     <Application.Styles>
         <FluentTheme DensityStyle="Compact" />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
         <StyleInclude Source="avares://Quarry/Styles.axaml" />
     </Application.Styles>
@@ -23,6 +24,8 @@
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="PaneBackground" Color="#F5F5F7" />
+                    <SolidColorBrush x:Key="EditorBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ContentPaneBackground" Color="#F5F5F7" />
                     <SolidColorBrush x:Key="PaneBorder" Color="#DDDDE2" />
                     <SolidColorBrush x:Key="ErrorText" Color="#C42B1C" />
                     <SolidColorBrush x:Key="StatusText" Color="#5C5C66" />
@@ -38,6 +41,8 @@
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="PaneBackground" Color="#202024" />
+                    <SolidColorBrush x:Key="EditorBackground" Color="#1E1E1E" />
+                    <SolidColorBrush x:Key="ContentPaneBackground" Color="#202024" />
                     <SolidColorBrush x:Key="PaneBorder" Color="#3A3A40" />
                     <SolidColorBrush x:Key="ErrorText" Color="#FF6B5E" />
                     <SolidColorBrush x:Key="StatusText" Color="#A0A0AA" />

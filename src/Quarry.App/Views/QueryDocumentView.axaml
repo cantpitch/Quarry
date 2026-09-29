@@ -7,6 +7,7 @@
     <Grid x:Name="Root" RowDefinitions="3*,4,2*">
         <ae:TextEditor x:Name="Editor"
                        ShowLineNumbers="True"
+                       Background="{DynamicResource EditorBackground}"
                        FontFamily="{StaticResource MonoFont}"
                        FontSize="13"
                        HorizontalScrollBarVisibility="Auto"
@@ -15,7 +16,7 @@
 
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="{DynamicResource PaneBorder}" />
 
-        <TabControl Grid.Row="2" Padding="0" SelectedIndex="{Binding SelectedOutputTab}">
+        <TabControl Grid.Row="2" Padding="0" Background="{DynamicResource ContentPaneBackground}" SelectedIndex="{Binding SelectedOutputTab}">
             <TabItem Header="Results" FontSize="13">
                 <Panel>
                     <ScrollViewer x:Name="GridHost" IsVisible="{Binding IsGridMode}"
@@ -23,6 +24,7 @@
                         <StackPanel x:Name="GridStack" Spacing="6" />
                     </ScrollViewer>
                     <ae:TextEditor x:Name="TextOutput" IsVisible="{Binding !IsGridMode}"
+                                   Background="{DynamicResource ContentPaneBackground}"
                                    IsReadOnly="True"
                                    HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                                    Padding="4,2" />
