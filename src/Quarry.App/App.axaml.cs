@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Quarry.App.Services;
 using Quarry.App.Views;
 using Quarry.Core.Connections;
 
@@ -16,6 +17,7 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        ThemeColors.Apply(AppServices.Settings);
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var window = new MainWindow();

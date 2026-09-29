@@ -27,6 +27,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         var s = AppServices.Settings;
         _fontSize = s.EditorFontSize;
         _gridFontSize = s.GridFontSize;
+        IsDarkTheme = ThemeColors.IsDark;
+        _editorBackground = ThemeColors.Parse(IsDarkTheme ? s.EditorBackgroundDark : s.EditorBackgroundLight, IsDarkTheme ? "#1E1E1E" : "#FFFFFF");
+        _paneBackground = ThemeColors.Parse(IsDarkTheme ? s.PaneBackgroundDark : s.PaneBackgroundLight, IsDarkTheme ? "#202024" : "#F5F5F7");
         EditorFonts = BuildFontChoices(FontCatalog.Monospace, "Default (monospace)");
         GridFonts = BuildFontChoices(FontCatalog.All, "Default");
         _selectedEditorFont = FindFont(EditorFonts, s.EditorFontFamily);
@@ -75,6 +78,19 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private static Choice<string> FindFont(IReadOnlyList<Choice<string>> choices, string name)
         => choices.FirstOrDefault(c => string.Equals(c.Value, name, StringComparison.OrdinalIgnoreCase)) ?? choices[0];
+
+    /// <summary>Only the colors for the active theme are shown and saved.</summary>
+    public bool IsDarkTheme { get; }
+
+    public string EditorBackgroundLabel => IsDarkTheme ? "Query editor background (dark mode)" : "Query editor background (light mode)";
+
+    public string PaneBackgroundLabel => IsDarkTheme ? "Explorer and results background (dark mode)" : "Explorer and results background (light mode)";
+
+    [ObservableProperty]
+    private Avalonia.Media.Color _editorBackground;
+
+    [ObservableProperty]
+    private Avalonia.Media.Color _paneBackground;
 
     [ObservableProperty]
     private Choice<string> _selectedEditorFont;
@@ -297,6 +313,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             ExportUtf8Bom = ExportUtf8Bom,
             Formatting = FormatOptions,
         };
+        string editorColor = ThemeColors.Format(EditorBackground);
+        string paneColor = ThemeColors.Format(PaneBackground);
+        settings = IsDarkTheme
+            ? settings with { EditorBackgroundDark = editorColor, PaneBackgroundDark = paneColor }
+            : settings with { EditorBackgroundLight = editorColor, PaneBackgroundLight = paneColor };
         try
         {
             settings.Save();
@@ -307,6 +328,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
         AppServices.Settings = settings;
+        ThemeColors.Apply(settings);
         Saved = true;
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }

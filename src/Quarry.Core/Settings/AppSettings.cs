@@ -14,6 +14,16 @@ public sealed record AppSettings
 
     public double GridFontSize { get; init; } = 12;
 
+    /// <summary>Query editor background as #RRGGBB, per theme.</summary>
+    public string EditorBackgroundLight { get; init; } = "#FFFFFF";
+
+    public string EditorBackgroundDark { get; init; } = "#1E1E1E";
+
+    /// <summary>Background of the explorer, history and results panes as #RRGGBB, per theme.</summary>
+    public string PaneBackgroundLight { get; init; } = "#F5F5F7";
+
+    public string PaneBackgroundDark { get; init; } = "#202024";
+
     /// <summary>0 keeps every row.</summary>
     public int MaxRowsPerResultSet { get; init; }
 
