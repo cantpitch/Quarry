@@ -24,7 +24,6 @@
                     </ScrollViewer>
                     <ae:TextEditor x:Name="TextOutput" IsVisible="{Binding !IsGridMode}"
                                    IsReadOnly="True"
-                                   FontFamily="{StaticResource MonoFont}" FontSize="12"
                                    HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                                    Padding="4,2" />
                     <TextBlock Classes="status" HorizontalAlignment="Center" VerticalAlignment="Center"

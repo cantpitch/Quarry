@@ -54,7 +54,14 @@ public partial class QueryDocumentView : UserControl, IEditorAccessor
 
     private void ApplySettings()
     {
-        Editor.FontSize = AppServices.Settings.EditorFontSize;
+        var settings = AppServices.Settings;
+        var editorFont = FontCatalog.Editor(settings.EditorFontFamily);
+        Editor.FontFamily = editorFont;
+        Editor.FontSize = settings.EditorFontSize;
+        TextOutput.FontFamily = editorFont;
+        TextOutput.FontSize = settings.EditorFontSize;
+        foreach (var (_, grid) in _grids)
+            ResultGridFactory.ApplyFont(grid);
     }
 
     protected override void OnDataContextChanged(EventArgs e)

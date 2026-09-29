@@ -6,6 +6,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
+using Quarry.App.Services;
 using Quarry.App.ViewModels;
 using Quarry.Core.Results;
 
@@ -33,6 +34,7 @@ public static class ResultGridFactory
             ItemsSource = rs.Rows,
         };
         grid.Classes.Add("results");
+        ApplyFont(grid);
 
         for (int i = 0; i < rs.Columns.Count; i++)
         {
@@ -83,6 +85,15 @@ public static class ResultGridFactory
         });
         grid.ContextMenu = menu;
         return grid;
+    }
+
+    /// <summary>Applies the grid font settings.</summary>
+    public static void ApplyFont(DataGrid grid)
+    {
+        var settings = AppServices.Settings;
+        grid.FontFamily = FontCatalog.Grid(settings.GridFontFamily);
+        grid.FontSize = settings.GridFontSize;
+        grid.RowHeight = Math.Ceiling(settings.GridFontSize * 1.8);
     }
 
     private static void AddItem(ContextMenu menu, string header, Func<Task> action)

@@ -26,6 +26,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         var s = AppServices.Settings;
         _fontSize = s.EditorFontSize;
+        _gridFontSize = s.GridFontSize;
+        EditorFonts = BuildFontChoices(FontCatalog.Monospace, "Default (monospace)");
+        GridFonts = BuildFontChoices(FontCatalog.All, "Default");
+        _selectedEditorFont = FindFont(EditorFonts, s.EditorFontFamily);
+        _selectedGridFont = FindFont(GridFonts, s.GridFontFamily);
         _maxRows = s.MaxRowsPerResultSet;
         _commandTimeout = s.CommandTimeoutSeconds;
         _stopOnError = s.StopOnError;
@@ -61,8 +66,27 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     // ---- General ----
 
+    public IReadOnlyList<Choice<string>> EditorFonts { get; }
+
+    public IReadOnlyList<Choice<string>> GridFonts { get; }
+
+    private static IReadOnlyList<Choice<string>> BuildFontChoices(IEnumerable<string> names, string defaultLabel)
+        => [new("", defaultLabel), .. names.Select(n => new Choice<string>(n, n))];
+
+    private static Choice<string> FindFont(IReadOnlyList<Choice<string>> choices, string name)
+        => choices.FirstOrDefault(c => string.Equals(c.Value, name, StringComparison.OrdinalIgnoreCase)) ?? choices[0];
+
+    [ObservableProperty]
+    private Choice<string> _selectedEditorFont;
+
+    [ObservableProperty]
+    private Choice<string> _selectedGridFont;
+
     [ObservableProperty]
     private double _fontSize;
+
+    [ObservableProperty]
+    private double _gridFontSize;
 
     [ObservableProperty]
     private int _maxRows;
@@ -259,7 +283,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         var settings = AppServices.Settings with
         {
+            EditorFontFamily = SelectedEditorFont.Value,
             EditorFontSize = Math.Clamp(FontSize, 8, 40),
+            GridFontFamily = SelectedGridFont.Value,
+            GridFontSize = Math.Clamp(GridFontSize, 8, 40),
             MaxRowsPerResultSet = Math.Max(0, MaxRows),
             CommandTimeoutSeconds = Math.Max(0, CommandTimeout),
             StopOnError = StopOnError,
