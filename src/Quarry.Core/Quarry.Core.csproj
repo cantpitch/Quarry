@@ -5,6 +5,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Microsoft.Data.SqlClient.Extensions.Azure" />
+    <!-- SqlClient brings in a vulnerable version (CVE-2026-84008, CVE-2026-70162); pin a patched one. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Quarry.Parsing\Quarry.Parsing.csproj" />
