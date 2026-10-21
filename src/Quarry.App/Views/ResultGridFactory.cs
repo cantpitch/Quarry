@@ -64,14 +64,19 @@ public static class ResultGridFactory
             if (e.Key == Key.C && e.KeyModifiers.HasFlag(command))
             {
                 e.Handled = true;
-                await CopyAsync(grid, rs, includeHeaders: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                    await CopyAsync(grid, rs, includeHeaders: true);
+                else if (grid.SelectedItems.Count > 1)
+                    await CopyAsync(grid, rs, includeHeaders: false);
+                else
+                    await CopyCellAsync(grid, rs);
             }
         };
 
         var menu = new ContextMenu();
-        AddItem(menu, "Copy", () => CopyAsync(grid, rs, includeHeaders: false));
-        AddItem(menu, "Copy with Headers", () => CopyAsync(grid, rs, includeHeaders: true));
-        AddItem(menu, "Copy Cell", () => CopyCellAsync(grid, rs));
+        AddItem(menu, "Copy", () => CopyCellAsync(grid, rs));
+        AddItem(menu, "Copy Row", () => CopyAsync(grid, rs, includeHeaders: false));
+        AddItem(menu, "Copy Row with Headers", () => CopyAsync(grid, rs, includeHeaders: true));
         if (export is not null)
         {
             menu.Items.Add(new Separator());
@@ -127,6 +132,7 @@ public static class ResultGridFactory
         await SetClipboardAsync(grid, sb.ToString());
     }
 
+    /// <summary>Copies the current cell's full value.</summary>
     private static async Task CopyCellAsync(DataGrid grid, ResultSetViewModel rs)
     {
         if (grid.SelectedItem is not ResultRow row || grid.CurrentColumn is not { } column)
