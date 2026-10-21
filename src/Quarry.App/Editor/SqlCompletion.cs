@@ -16,6 +16,7 @@ public enum CompletionKind
     Function,
     DataType,
     Variable,
+    Database,
     Schema,
     Object,
     Column,
@@ -49,7 +50,8 @@ public interface ICompletionContext
 
 /// <summary>
 /// Basic completion: keywords, functions, types, variables and object names on typing or
-/// Ctrl+Space, and schema members / columns after a dot.
+/// Ctrl+Space, and schemas / schema members / columns after a dot, including
+/// three-part names in other databases ("db.schema.table").
 /// </summary>
 public sealed partial class SqlCompletionController
 {
@@ -157,7 +159,13 @@ public sealed partial class SqlCompletionController
         foreach (Match m in VariablePattern().Matches(document.Text))
             Add(m.Value, CompletionKind.Variable, "Variable", 2);
 
-        if (await GetObjectsAsync() is { } objects)
+        if (await GetDatabasesAsync() is { } databases)
+        {
+            foreach (var database in databases)
+                Add(QuoteIfNeeded(database), CompletionKind.Database, "Database", 1);
+        }
+
+        if (await GetObjectsAsync(_context.Database) is { } objects)
         {
             foreach (var schema in objects.Select(o => o.Schema).Distinct(StringComparer.OrdinalIgnoreCase))
                 Add(QuoteIfNeeded(schema), CompletionKind.Schema, "Schema", 1);
@@ -175,30 +183,48 @@ public sealed partial class SqlCompletionController
         return items.OrderBy(i => i.Text, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    /// <summary>Items after "qualifier.": objects in a schema, or columns of a table, view or alias.</summary>
+    /// <summary>
+    /// Items after "qualifier.": schemas of a database, objects in a schema, or columns of a
+    /// table, view or alias. The qualifier may name another database ("db." or "db.schema.").
+    /// </summary>
     private async Task<List<ICompletionData>> GetMemberItemsAsync(TextDocument document, int dotOffset)
     {
         var parts = ReadQualifier(document, dotOffset);
-        if (parts.Count == 0 || await GetObjectsAsync() is not { } objects)
+        if (parts.Count == 0 || parts.Count > 3)
             return [];
+        var items = new List<ICompletionData>();
+        var currentObjects = await GetObjectsAsync(_context.Database);
 
-        string last = parts[^1];
-        if (parts.Count == 1 && objects.Any(o => o.Schema.Equals(last, StringComparison.OrdinalIgnoreCase)))
+        // "schema." in the current database.
+        if (parts.Count == 1 && currentObjects is not null)
+            items.AddRange(SchemaMembers(currentObjects, parts[0]));
+
+        // "db." or "db.schema." in any database.
+        if (parts.Count <= 2 && await FindDatabaseAsync(parts[0]) is { } database
+            && await GetObjectsAsync(database) is { } dbObjects)
         {
-            return objects.Where(o => o.Schema.Equals(last, StringComparison.OrdinalIgnoreCase))
-                .Select(o => (ICompletionData)new SqlCompletionData(QuoteIfNeeded(o.Name), CompletionKind.Object, $"{o.Kind} {o.Schema}.{o.Name}"))
-                .ToList();
+            if (parts.Count == 1)
+            {
+                items.AddRange(dbObjects.Select(o => o.Schema).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(schema => (ICompletionData)new SqlCompletionData(QuoteIfNeeded(schema), CompletionKind.Schema, $"Schema in {database}")));
+            }
+            else
+            {
+                items.AddRange(SchemaMembers(dbObjects, parts[1]));
+            }
         }
+        if (items.Count > 0)
+            return items;
 
-        DbObject? target = parts.Count >= 2
-            ? FindObject(objects, parts[^2], last)
-            : FindObject(objects, null, last) ?? ResolveAlias(document.Text, last, objects);
-        if (target is null || _context.Server is not { } server || _context.Database is not { } db)
+        // Columns of "table.", "schema.table.", "db.schema.table." or "alias.".
+        var target = await ResolveObjectAsync(parts, currentObjects)
+                     ?? (parts.Count == 1 ? await ResolveAliasAsync(document.Text, parts[0], currentObjects) : null);
+        if (target is not { } t || _context.Server is not { } server)
             return [];
 
         try
         {
-            var columns = await server.Metadata.GetColumnsAsync(db, target.ObjectId);
+            var columns = await server.Metadata.GetColumnsAsync(t.Database, t.Object.ObjectId);
             return columns.Select(c => (ICompletionData)new SqlCompletionData(QuoteIfNeeded(c.Name), CompletionKind.Column, c.Description)).ToList();
         }
         catch (Exception)
@@ -207,13 +233,51 @@ public sealed partial class SqlCompletionController
         }
     }
 
-    private async Task<IReadOnlyList<DbObject>?> GetObjectsAsync()
+    private static IEnumerable<ICompletionData> SchemaMembers(IReadOnlyList<DbObject> objects, string schema)
+        => objects.Where(o => o.Schema.Equals(schema, StringComparison.OrdinalIgnoreCase))
+            .Select(o => (ICompletionData)new SqlCompletionData(QuoteIfNeeded(o.Name), CompletionKind.Object, $"{o.Kind} {o.Schema}.{o.Name}"));
+
+    /// <summary>Resolves "name", "schema.name" or "db.schema.name" to an object and its database.</summary>
+    private async Task<(string Database, DbObject Object)?> ResolveObjectAsync(List<string> parts, IReadOnlyList<DbObject>? currentObjects)
     {
-        if (_context.Server is not { } server || string.IsNullOrEmpty(_context.Database))
+        if (parts.Count == 3)
+        {
+            if (await FindDatabaseAsync(parts[0]) is { } database && await GetObjectsAsync(database) is { } objects
+                && FindObject(objects, parts[1], parts[2]) is { } obj)
+                return (database, obj);
+            return null;
+        }
+        if (currentObjects is null || _context.Database is not { } current)
+            return null;
+        var found = FindObject(currentObjects, parts.Count == 2 ? parts[0] : null, parts[^1]);
+        return found is null ? null : (current, found);
+    }
+
+    /// <summary>The server's database named <paramref name="name"/>, with its actual casing.</summary>
+    private async Task<string?> FindDatabaseAsync(string name)
+        => (await GetDatabasesAsync())?.FirstOrDefault(d => d.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private async Task<IReadOnlyList<string>?> GetDatabasesAsync()
+    {
+        if (_context.Server is not { } server)
             return null;
         try
         {
-            return await server.Metadata.GetObjectsAsync(_context.Database);
+            return await server.Metadata.GetDatabasesAsync();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private async Task<IReadOnlyList<DbObject>?> GetObjectsAsync(string? database)
+    {
+        if (_context.Server is not { } server || string.IsNullOrEmpty(database))
+            return null;
+        try
+        {
+            return await server.Metadata.GetObjectsAsync(database);
         }
         catch (Exception)
         {
@@ -228,17 +292,16 @@ public sealed partial class SqlCompletionController
             .FirstOrDefault();
 
     /// <summary>Finds "FROM|JOIN name [AS] alias" in the script and resolves the alias to an object.</summary>
-    private static DbObject? ResolveAlias(string text, string alias, IReadOnlyList<DbObject> objects)
+    private async Task<(string Database, DbObject Object)?> ResolveAliasAsync(string text, string alias, IReadOnlyList<DbObject>? currentObjects)
     {
         foreach (Match m in AliasPattern().Matches(text))
         {
             if (!m.Groups["alias"].Value.Equals(alias, StringComparison.OrdinalIgnoreCase))
                 continue;
             var nameParts = SplitName(m.Groups["name"].Value);
-            if (nameParts.Count == 0)
+            if (nameParts.Count is 0 or > 3)
                 continue;
-            var obj = FindObject(objects, nameParts.Count >= 2 ? nameParts[^2] : null, nameParts[^1]);
-            if (obj is not null)
+            if (await ResolveObjectAsync(nameParts, currentObjects) is { } obj)
                 return obj;
         }
         return null;
