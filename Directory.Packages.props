@@ -18,6 +18,7 @@
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient.Extensions.Azure" Version="7.1.0" />
     <PackageVersion Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.117.0" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
     <!-- Tests -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
